@@ -42,6 +42,8 @@ interface SessionState {
   submitSession: () => Promise<void>;
   resetSession: () => void;
   setError: (error: string | null) => void;
+  lastSelectedWpm: number | null;
+  setLastSelectedWpm: (wpm: number | null) => void;
 }
 
 type StartSessionResponse =
@@ -83,6 +85,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   result: null,
   isSubmitting: false,
   error: null,
+  lastSelectedWpm: null,
+  setLastSelectedWpm: (wpm) => set({ lastSelectedWpm: wpm }),
 
   startSession: async (config) => {
     const { passage, passageDomain } = get();
@@ -138,7 +142,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   submitAnswer: (response) => {
-    set((state) => ({ responses: [...state.responses, response] }));
+    set((state) => {
+      const existingIdx = state.responses.findIndex((r) => r.question_id === response.question_id);
+      let nextResponses = [...state.responses];
+      if (existingIdx > -1) {
+        nextResponses[existingIdx] = response;
+      } else {
+        nextResponses.push(response);
+      }
+      return { responses: nextResponses };
+    });
   },
 
   submitSession: async () => {

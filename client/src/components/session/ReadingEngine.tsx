@@ -16,6 +16,8 @@ interface ReadingEngineProps {
   guideEnabled: boolean;
   colWidth: ColWidth;
   fontSizePx: number;
+  highlightIntensity: "subtle" | "moderate" | "intense";
+  autoCenterScroll?: boolean;
 }
 
 const colWidthClass: Record<ColWidth, string> = {
@@ -31,6 +33,8 @@ export default function ReadingEngine({
   guideEnabled,
   colWidth,
   fontSizePx,
+  highlightIntensity,
+  autoCenterScroll = true,
 }: ReadingEngineProps) {
   const activeChunkRef = useRef<HTMLSpanElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,12 +64,13 @@ export default function ReadingEngine({
     return () => observer.disconnect();
   }, [updateGuidePosition]);
 
-  // Scroll active chunk into view
+  // Scroll active chunk into view based on autoCenterScroll setting
   useEffect(() => {
     if (activeChunkRef.current) {
-      activeChunkRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+      const scrollBlock = autoCenterScroll ? "center" : "nearest";
+      activeChunkRef.current.scrollIntoView({ block: scrollBlock, behavior: "smooth" });
     }
-  }, [currentChunkIndex]);
+  }, [currentChunkIndex, autoCenterScroll]);
 
   // ── Fading Logic (1.5s Delay) ─────────────────────────────
   useEffect(() => {
@@ -90,6 +95,12 @@ export default function ReadingEngine({
       })),
     [chunks, currentChunkIndex, fadingEnabled, fadedIndex]
   );
+
+  const intensityClasses: Record<"subtle" | "moderate" | "intense", string> = {
+    subtle: "bg-indigo-500/15 border-indigo-500/20 -inset-x-0.5 -inset-y-0",
+    moderate: "bg-indigo-500/30 border-indigo-500/40 -inset-x-2 -inset-y-0.5",
+    intense: "bg-indigo-500/60 border-indigo-500/80 -inset-x-3.5 -inset-y-1 shadow-[0_0_14px_rgba(99,102,241,0.5)]",
+  };
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -125,7 +136,7 @@ export default function ReadingEngine({
                 <motion.span
                   layoutId="highlight"
                   aria-hidden
-                  className="absolute -inset-x-1.5 -inset-y-0.5 rounded bg-indigo-500/20 border border-indigo-500/30 -z-10"
+                  className={cn("absolute rounded -z-10 transition-all duration-300", intensityClasses[highlightIntensity])}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}

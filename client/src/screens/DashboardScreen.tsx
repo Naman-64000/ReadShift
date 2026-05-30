@@ -39,15 +39,17 @@ export default function DashboardScreen() {
 
   // Empty state — no sessions yet
   if (!summary || summary.sessions_completed === 0) {
+    const hasCalibrated = summary && summary.baseline_wpm > 0;
+
     return (
       <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center max-w-lg space-y-8 p-10 rounded-3xl border border-white/10 bg-white/4 backdrop-blur-xl"
+          className="text-center max-w-lg space-y-8 p-10 rounded-3xl border border-white/10 bg-white/4 backdrop-blur-xl animate-fade-in"
         >
           <div className="relative inline-block">
-            <span className="text-7xl">⚡</span>
+            <span className="text-7xl">{hasCalibrated ? "📖" : "⚡"}</span>
             <motion.span 
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
@@ -59,23 +61,42 @@ export default function DashboardScreen() {
           </div>
           
           <div className="space-y-3">
-            <h1 className="text-4xl font-black text-white tracking-tight">Ready to Read Faster?</h1>
-            <p className="text-slate-400 text-lg leading-relaxed">
-              Before we start training, we need to measure your current reading speed. 
-              This takes less than 60 seconds and sets your training baseline.
+            <h1 className="text-3xl font-black text-white tracking-tight">
+              {hasCalibrated ? "Your Baseline is Set!" : "Ready to Read Faster?"}
+            </h1>
+            <p className="text-slate-400 text-base sm:text-lg leading-relaxed">
+              {hasCalibrated 
+                ? `Your baseline reading speed is measured at ${summary.baseline_wpm} WPM. Start your first training session to push your speed and comprehension to the next level!`
+                : "Before we start training, we need to measure your current reading speed. This takes less than 60 seconds and sets your training baseline."}
             </p>
           </div>
 
           <div className="flex flex-col gap-4 pt-4">
-            <Button size="lg" className="h-14 text-lg font-bold shadow-xl shadow-indigo-500/20" onClick={() => navigate("/calibration")}>
-              🚀 Start Calibration
-            </Button>
-            <button 
-              onClick={() => navigate("/session/config")}
-              className="text-slate-500 hover:text-slate-300 transition-colors text-sm font-medium"
-            >
-              Skip and go to session config
-            </button>
+            {hasCalibrated ? (
+              <>
+                <Button size="lg" className="h-14 text-lg font-bold shadow-xl shadow-indigo-500/20" onClick={() => navigate("/session/config")}>
+                  🚀 Start Your First Session
+                </Button>
+                <button 
+                  onClick={() => navigate("/calibration")}
+                  className="text-slate-500 hover:text-slate-300 transition-colors text-sm font-medium"
+                >
+                  Retake baseline WPM calibration
+                </button>
+              </>
+            ) : (
+              <>
+                <Button size="lg" className="h-14 text-lg font-bold shadow-xl shadow-indigo-500/20" onClick={() => navigate("/calibration")}>
+                  🚀 Start Calibration
+                </Button>
+                <button 
+                  onClick={() => navigate("/session/config")}
+                  className="text-slate-500 hover:text-slate-300 transition-colors text-sm font-medium"
+                >
+                  Skip and go to session config
+                </button>
+              </>
+            )}
           </div>
         </motion.div>
       </div>

@@ -14,6 +14,9 @@ const PrefsSchema = z.object({
   col_width:      z.enum(["narrow", "medium", "wide"]).optional(),
   font_size_px:   z.union([z.literal(16), z.literal(18), z.literal(21)]).optional(),
   domains:        z.array(z.enum(["business", "science", "history", "abstract", "social"])).min(1).optional(),
+  mcq_timer:      z.number().int().min(0).max(180).optional(),
+  highlight_intensity: z.enum(["subtle", "moderate", "intense"]).optional(),
+  auto_center_scroll:  z.boolean().optional(),
 });
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {

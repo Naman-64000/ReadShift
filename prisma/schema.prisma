@@ -82,6 +82,9 @@ model UserPreferences {
   col_width      ColWidth @default(medium)    // column width preference
   font_size_px   Int      @default(18)        // 16 | 18 | 21 px
   domains        Domain[] @default([business, science, history, abstract, social])
+  mcq_timer      Int      @default(0)         // 0 = no time, otherwise 15-180 seconds
+  highlight_intensity String @default("moderate") // subtle | moderate | intense
+  auto_center_scroll Boolean  @default(true)      // auto-center active line
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)

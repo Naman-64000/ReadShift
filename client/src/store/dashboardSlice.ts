@@ -44,5 +44,5 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
   },
 
-  invalidate: () => set({ lastFetchedAt: null }),
+  invalidate: () => set({ summary: null, lastFetchedAt: null }),
 }));

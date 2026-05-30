@@ -22,7 +22,6 @@
 12. [Build Phases & Milestones](#12-build-phases--milestones)
 13. [Deployment](#13-deployment)
 14. [Scientific Foundation](#14-scientific-foundation)
-15. [Known Deviations](#15-known-deviations)
 
 ---
 
@@ -96,7 +95,7 @@ ReadShift/                          # Monorepo root
 │   ├── tsconfig.json
 │   ├── index.html
 │   └── src/
-│       ├── main.tsx                # Entry point — mounts React + Clerk + Router
+│       ├── main.tsx                # Entry point — mounts React + Supabase + Router
 │       ├── App.tsx                 # Route tree
 │       ├── index.css               # Tailwind base + design tokens
 │       │
@@ -130,8 +129,8 @@ ReadShift/                          # Monorepo root
 │       │   └── useUserProfile.ts   # User profile loader
 │       │
 │       ├── lib/
-│       │   ├── apiClient.ts        # Axios instance + Clerk JWT interceptor
-│       │   ├── clerkConfig.ts      # Clerk publishable key + appearance
+│       │   ├── apiClient.ts        # Axios instance + Supabase JWT interceptor
+│       │   ├── supabase.ts         # Supabase client initialization
 │       │   ├── utils.ts            # WPM math, formatting helpers
 │       │   └── constants.ts        # WPM levels, domains, allowed values
 │       │
@@ -169,15 +168,15 @@ ReadShift/                          # Monorepo root
         │   ├── passageService.ts   # getPoolDepth(), getUnseen(), flagPassage()
         │   ├── dashboardService.ts # buildSummary()
         │   ├── aiService.ts        # generatePassage(), generateQuestions()
-        │   └── authService.ts      # verifyToken(), getUserByClerkId()
+        │   ├── authService.ts      # verifyToken(), getUserBySupabaseId()
         │
         ├── middleware/
-        │   ├── auth.ts             # requireAuth — validates Clerk JWT
+        │   ├── auth.ts             # requireAuth — validates Supabase JWT
         │   ├── rateLimiter.ts      # globalRateLimit, sessionRateLimit
         │   └── errorHandler.ts     # Global error → JSON envelope mapper
         │
         ├── jobs/                   # BullMQ workers
-        │   ├── passageWarmingJob.ts # Generates passages via Claude when pool is low
+        │   ├── passageWarmingJob.ts # Generates passages via Gemini when pool is low
         │   ├── poolHealthJob.ts     # Scheduled: checks pool depth, enqueues warming jobs
         │   └── streakResetJob.ts    # Daily: resets streaks for inactive users
         │
@@ -282,10 +281,10 @@ Copy `.env.example` → `.env` and set every value before running locally.
 | `REDIS_URL` | ✅ | Redis connection URL |
 | `PORT` | ✅ | Express server port (default `3001`) |
 | `CORS_ORIGIN` | ✅ | Allowed CORS origin for the API (Vite dev: `http://localhost:5173`) |
-| `CLERK_SECRET_KEY` | ✅ | Clerk backend secret key (for JWT verification) |
-| `CLERK_PUBLISHABLE_KEY` | ✅ | Clerk publishable key |
-| `VITE_CLERK_PUBLISHABLE_KEY` | ✅ | Same as above — exposed to the Vite client |
-| `ANTHROPIC_API_KEY` | ✅ | Anthropic Claude API key |
+| `SUPABASE_URL` | ✅ | Supabase project URL |
+| `VITE_SUPABASE_URL` | ✅ | Same as above — exposed to the Vite client |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anon key — exposed to the Vite client |
+| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
 | `VITE_API_BASE_URL` | ✅ | Backend API base URL seen by the client |
 | `LOG_LEVEL` | ✅ | `debug` \| `info` \| `warn` \| `error` |
 | `PASSAGE_POOL_MIN_THRESHOLD` | ✅ | Passages per domain-level before top-up triggers (default `50`) |
@@ -302,7 +301,7 @@ The Prisma schema is at `prisma/schema.prisma` and defines **8 tables**:
 
 | Table | Purpose |
 | :--- | :--- |
-| `users` | Core identity record, linked to Clerk via `clerk_id` |
+| `users` | Core identity record, linked to Supabase via `supabase_id` |
 | `user_prefs` | Reading preferences — one row per user |
 | `passages` | Shared AI-generated content pool (250–350 words each) |
 | `questions` | 3 MCQs per passage (main_idea, inference, vocab) |
@@ -360,6 +359,17 @@ cd server && npm run type-check
 npm run lint
 ```
 
+### Quality Assurance (QA) & E2E Testing
+
+```bash
+# Run Lighthouse performance audit on the reading screen
+npm run qa:lighthouse:reading
+
+# Run Playwright end-to-end tests
+npm run qa:e2e:staging
+npm run qa:e2e:staging:headed
+```
+
 ---
 
 ## 9. Background Jobs
@@ -368,7 +378,7 @@ Three BullMQ workers run inside the server process:
 
 | Job | Queue | Schedule | Purpose |
 | :--- | :--- | :--- | :--- |
-| `passageWarmingJob` | `passage-warming` | On-demand | Calls Claude to generate passages + MCQs when pool is low |
+| `passageWarmingJob` | `passage-warming` | On-demand | Calls Gemini to generate passages + MCQs when pool is low |
 | `poolHealthJob` | `pool-health` | Every 30 min | Checks passage pool depth per domain-level, enqueues warming jobs |
 | `streakResetJob` | `streak-reset` | Daily at midnight UTC | Resets streaks for users with no activity in 24h |
 
@@ -420,7 +430,7 @@ All API routes are prefixed with `/api`. All protected routes require a Supabase
 | Method | Path | Auth | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/users/me` | ✅ | Get authenticated user + preferences |
-| `POST` | `/api/users` | ✅ | Create user record on first Clerk login |
+| `POST` | `/api/users` | ✅ | Create user record on first Supabase login |
 | `PATCH` | `/api/users/me/preferences` | ✅ | Update reading preferences (partial) |
 | `DELETE` | `/api/users/me` | ✅ | Delete account and all associated data |
 
@@ -501,7 +511,7 @@ All responses follow a consistent shape:
 - [x] Build `CalibrationScreen` and `calibrationsController`
 
 ### Phase 3 — AI Content Pipeline + Dashboard (Weeks 5–6)
-> **Goal:** Claude generates passages and MCQs. Dashboard shows real data.
+> **Goal:** Gemini generates passages and MCQs. Dashboard shows real data.
 
 - [x] Implement `aiService.generatePassage()` and `generateQuestions()` (Gemini-based implementation)
 - [x] Implement `passageWarmingJob` BullMQ worker
@@ -527,7 +537,7 @@ All responses follow a consistent shape:
 | :--- | :--- | :--- |
 | M1: Reading Engine | 2 | Chunk highlighting + timer accurate across 4 browsers |
 | M2: Auth + DB | 4 | Registration, session save, no passage repeats |
-| M3: AI Content | 6 | Claude generates, MCQs work, scores saved |
+| M3: AI Content | 6 | Gemini generates, MCQs work, scores saved |
 | M4: Full Dashboard | 6 | WPM trend + accuracy charts show real data < 300ms |
 | M5: Adaptive Difficulty | 7 | Level promotion fires correctly on seeded test data |
 | M6: Production Launch | 8 | All Phase 4 criteria passed, custom domain live |
@@ -590,24 +600,4 @@ A 1px horizontal guide line moves down the passage at the line-crossing rate. Su
 
 > *This repository is the authoritative reference for the ReadShift v1 build. Questions about any section should be directed to the product lead. Updates require a version bump.*
 
----
 
-## 15. Known Deviations
-
-The original implementation plan and some inline docs were drafted for a different stack. Current code intentionally deviates in the following ways:
-
-1. Auth provider
-- Plan/docs reference: Clerk.
-- Current implementation: Supabase Auth (`SUPABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) with backend JWT verification via Supabase JWKS.
-
-2. AI provider
-- Plan/docs reference: Claude/Anthropic.
-- Current implementation: Google Gemini (`GEMINI_API_KEY`) in `server/src/services/aiService.ts`.
-
-3. Quality-gate automation
-- Added executable QA commands/specs:
-  - `npm run qa:lighthouse:reading`
-  - `npm run qa:e2e:staging`
-  - `docs/quality-gates.md`
-  - `e2e/playwright.config.ts`
-  - `e2e/specs/quality-gates.spec.ts`

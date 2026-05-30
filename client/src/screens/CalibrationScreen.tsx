@@ -5,6 +5,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useDashboardStore, useSessionStore } from "@/store";
 import { apiClient } from "@/lib/apiClient";
 import { calculateActualWpm } from "@/lib/utils";
 import { CALIBRATION_WORD_COUNT } from "@/lib/constants";
@@ -18,17 +19,28 @@ export default function CalibrationScreen() {
   const [phase, setPhase] = useState<"intro" | "reading" | "done">("intro");
   const [wpm, setWpm] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tooFastError, setTooFastError] = useState(false);
   const startTimeRef = useRef<number | null>(null);
 
   const handleStartReading = () => {
     startTimeRef.current = Date.now();
+    setTooFastError(false);
     setPhase("reading");
   };
 
   const handleDone = useCallback(async () => {
     if (!startTimeRef.current) return;
     const elapsedMs = Date.now() - startTimeRef.current;
-    const calculatedWpm = calculateActualWpm(CALIBRATION_WORD_COUNT, elapsedMs);
+
+    // Capping at 500 WPM implies ~12 seconds for 100 words. 
+    // If they click under 11 seconds (~545 WPM), prompt them to read properly.
+    if (elapsedMs < 11000) {
+      setTooFastError(true);
+      return;
+    }
+
+    const calculatedWpm = Math.min(500, calculateActualWpm(CALIBRATION_WORD_COUNT, elapsedMs));
+    setTooFastError(false);
     setWpm(calculatedWpm);
     setPhase("done");
 
@@ -38,6 +50,8 @@ export default function CalibrationScreen() {
         wpm: calculatedWpm,
         recorded_at: new Date().toISOString(),
       });
+      useDashboardStore.getState().invalidate();
+      useSessionStore.getState().setLastSelectedWpm(null);
     } catch {
       // Non-fatal — user still sees their WPM
     } finally {
@@ -74,9 +88,16 @@ export default function CalibrationScreen() {
             <p className="text-slate-200 text-lg leading-[1.9] font-normal">
               {CALIBRATION_PASSAGE}
             </p>
-            <Button size="lg" className="w-full" onClick={handleDone}>
-              Done Reading →
-            </Button>
+            <div className="space-y-3">
+              {tooFastError && (
+                <p className="text-sm text-amber-400 text-center font-medium">
+                  That was a bit too fast! Please read the passage at your natural pace.
+                </p>
+              )}
+              <Button size="lg" className="w-full" onClick={handleDone}>
+                Done Reading →
+              </Button>
+            </div>
           </motion.div>
         )}
 

@@ -26,6 +26,9 @@ export interface UserPreferences {
   col_width: ColWidth;
   font_size_px: 16 | 18 | 21;
   domains: Domain[];
+  mcq_timer: number;
+  highlight_intensity: "subtle" | "moderate" | "intense";
+  auto_center_scroll: boolean;
 }
 
 /** Combined user + prefs shape returned by GET /api/users/me */

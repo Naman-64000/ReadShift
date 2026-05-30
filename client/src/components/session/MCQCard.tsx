@@ -2,7 +2,7 @@
  * client/src/components/session/MCQCard.tsx
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { QUESTION_TYPE_LABELS } from "@/lib/constants";
@@ -12,19 +12,36 @@ interface MCQCardProps {
   question: Question;
   questionNumber: number;
   totalQuestions: number;
+  selectedOption: number | null;
   onAnswer: (selectedIndex: 0 | 1 | 2 | 3) => void;
+  isTimed: boolean;
 }
 
 const OPTIONS = ["A", "B", "C", "D"] as const;
 
-export default function MCQCard({ question, questionNumber, totalQuestions, onAnswer }: MCQCardProps) {
-  const [selected, setSelected] = useState<number | null>(null);
+export default function MCQCard({
+  question,
+  questionNumber,
+  totalQuestions,
+  selectedOption,
+  onAnswer,
+  isTimed,
+}: MCQCardProps) {
+  const [selected, setSelected] = useState<number | null>(selectedOption);
+
+  useEffect(() => {
+    setSelected(selectedOption);
+  }, [selectedOption, question.id]);
 
   const handleSelect = (idx: number) => {
-    if (selected !== null) return; // prevent double-tap
+    if (isTimed && selected !== null) return;
     setSelected(idx);
-    // Brief delay to show selection state before advancing
-    setTimeout(() => onAnswer(idx as 0 | 1 | 2 | 3), 350);
+    
+    if (isTimed) {
+      setTimeout(() => onAnswer(idx as 0 | 1 | 2 | 3), 350);
+    } else {
+      onAnswer(idx as 0 | 1 | 2 | 3);
+    }
   };
 
   return (
@@ -55,13 +72,13 @@ export default function MCQCard({ question, questionNumber, totalQuestions, onAn
           <button
             key={idx}
             onClick={() => handleSelect(idx)}
-            disabled={selected !== null}
+            disabled={isTimed && selected !== null}
             className={cn(
               "w-full text-left flex items-start gap-4 rounded-xl border px-5 py-4",
               "transition-all duration-150 text-sm font-medium",
               selected === idx
                 ? "border-indigo-500 bg-indigo-500/15 text-white"
-                : selected !== null
+                : (isTimed && selected !== null)
                 ? "border-white/8 text-slate-500 cursor-default"
                 : "border-white/12 bg-white/4 text-slate-200 hover:border-indigo-500/50 hover:bg-indigo-500/8 hover:text-white cursor-pointer"
             )}

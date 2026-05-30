@@ -30,11 +30,6 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
   const levelLabel = currentLevel ? currentLevel[1].label : value > 400 ? "Expert+" : "Getting Started";
   const levelDesc  = currentLevel ? currentLevel[1].description : "";
 
-  // Percent position of the recommended marker along the slider track
-  const recPercent = recommendedWpm
-    ? ((recommendedWpm - WPM_MIN) / (WPM_MAX - WPM_MIN)) * 100
-    : null;
-
   return (
     <div className={cn("space-y-5", className)}>
       {/* Current WPM display */}
@@ -50,18 +45,6 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
 
       {/* Slider track */}
       <div className="relative">
-        {/* Recommended marker */}
-        {recPercent !== null && (
-          <div
-            className="absolute -top-4 flex flex-col items-center pointer-events-none"
-            style={{ left: `${recPercent}%`, transform: "translateX(-50%)" }}
-          >
-            <span className="text-[10px] text-indigo-300 font-semibold whitespace-nowrap">
-              Recommended
-            </span>
-            <div className="w-0.5 h-3 bg-indigo-400/60 mt-0.5" />
-          </div>
-        )}
 
         <input
           id="wpm-slider"

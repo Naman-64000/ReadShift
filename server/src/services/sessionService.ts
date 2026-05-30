@@ -45,10 +45,36 @@ export const sessionService = {
       level: targetLevel,
     };
 
+    let chosenDomain = domain;
+    if (!chosenDomain) {
+      const allDomains = ["business", "science", "history", "abstract", "social"];
+      // Shuffle domains randomly to try them in a random order with equal probability
+      const shuffled = [...allDomains].sort(() => Math.random() - 0.5);
+      
+      // Select the first domain in our shuffled list that has unseen ready passages at this level
+      for (const d of shuffled) {
+        const count = await prisma.passage.count({
+          where: {
+            ...baseWhere,
+            domain: d as any,
+          },
+        });
+        if (count > 0) {
+          chosenDomain = d;
+          break;
+        }
+      }
+      
+      // Fallback if all domains are fully exhausted/seen: pick the first shuffled domain
+      if (!chosenDomain) {
+        chosenDomain = shuffled[0];
+      }
+    }
+
     let candidates = await prisma.passage.findMany({
       where: {
         ...baseWhere,
-        ...(domain ? { domain: domain as any } : {}),
+        ...(chosenDomain ? { domain: chosenDomain as any } : {}),
       },
       take: 120,
       orderBy: { created_at: "desc" },
@@ -61,7 +87,7 @@ export const sessionService = {
 
     // Fallback: if requested domain has no unseen ready passages at this level,
     // broaden to any domain at the same level.
-    if (!candidates.length && domain) {
+    if (!candidates.length && chosenDomain) {
       candidates = await prisma.passage.findMany({
         where: baseWhere,
         take: 120,

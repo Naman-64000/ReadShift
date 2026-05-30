@@ -70,14 +70,19 @@ export const dashboardService = {
       .map((d) => d.domain);
 
     // Recommended WPM
-    // If user is newly calibrated with no sessions yet, start from baseline.
+    // If user is newly calibrated or just recalibrated, start from baseline.
     const allGood = last3.length === 3 && last3.every((s) => s.comprehension >= 2);
-    const recommended_wpm =
-      sessions.length === 0
-        ? baseline_wpm
-        : allGood
-          ? current_wpm + 25
-          : current_wpm;
+    const latest_session_date = sessions[0]?.completed_at?.getTime() ?? 0;
+    const latest_calib_date = calibrations[0]?.recorded_at?.getTime() ?? 0;
+    const just_recalibrated = latest_calib_date > latest_session_date;
+
+    const raw_recommended = (sessions.length === 0 || just_recalibrated)
+      ? (calibrations.length > 0 ? Math.round((baseline_wpm + 20) / 10) * 10 : 220)
+      : allGood
+        ? Math.round((current_wpm + 25) / 10) * 10
+        : Math.round(current_wpm / 10) * 10;
+        
+    const recommended_wpm = Math.min(500, raw_recommended);
 
     // Recommended domain = weakest domain if any, otherwise random from preferred
     const recommended_domain = weak_domains.length

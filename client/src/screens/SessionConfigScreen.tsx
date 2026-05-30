@@ -6,7 +6,7 @@ import { useDashboardStore } from "@/store";
 import { useUserStore } from "@/store";
 import WpmSlider from "@/components/session/WpmSlider";
 import Button from "@/components/shared/Button";
-import { DOMAINS, CHUNK_SIZES } from "@/lib/constants";
+import { DOMAINS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
 import type { Domain } from "@/types";
@@ -15,27 +15,39 @@ export default function SessionConfigScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const summary = useDashboardStore((s) => s.summary);
+  const fetchSummary = useDashboardStore((s) => s.fetchSummary);
   const prefs = useUserStore((s) => s.preferences);
-  const { startSession, prefetchPassage, error, setError } = useSessionStore();
+  const { startSession, prefetchPassage, error, setError, lastSelectedWpm, setLastSelectedWpm } = useSessionStore();
 
   const [targetWpm, setTargetWpm] = useState(
-    summary?.recommended_wpm ?? 280
+    lastSelectedWpm ?? summary?.recommended_wpm ?? 220
   );
   const [calibratedWpm, setCalibratedWpm] = useState<number | null>(null);
-  const [chunkSize, setChunkSize] = useState<3 | 4>(prefs?.chunk_size ?? 3);
-  const [fadingEnabled, setFadingEnabled] = useState(prefs?.fading_enabled ?? false);
-  const [guideEnabled, setGuideEnabled] = useState(prefs?.guide_enabled ?? true);
+  
+  const chunkSize = prefs?.chunk_size ?? 3;
+  const fadingEnabled = prefs?.fading_enabled ?? false;
+  const guideEnabled = prefs?.guide_enabled ?? true;
+
   const [selectedDomain, setSelectedDomain] = useState<Domain | "random">(
     (location.state?.drillDomain as Domain) || "random"
   );
   const [isStarting, setIsStarting] = useState(false);
 
-  // Background pre-fetch on mount
+  // Background pre-fetch on mount (debounced)
   useEffect(() => {
-    prefetchPassage(selectedDomain === "random" ? undefined : selectedDomain);
+    const timer = setTimeout(() => {
+      prefetchPassage(selectedDomain === "random" ? undefined : selectedDomain);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [prefetchPassage, selectedDomain]);
 
   useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
+
+  useEffect(() => {
+    if (lastSelectedWpm) return; // Don't override if user has manually selected
+
     if (summary?.recommended_wpm) {
       setTargetWpm(summary.recommended_wpm);
       return;
@@ -46,10 +58,12 @@ export default function SessionConfigScreen() {
         const baseline = res.data.data?.average_wpm ?? null;
         if (baseline) {
           setCalibratedWpm(baseline);
-          setTargetWpm(baseline);
+          setTargetWpm(Math.min(500, Math.round((baseline + 20) / 10) * 10));
+        } else {
+          setTargetWpm(220);
         }
       } catch {
-        // fallback to default 280
+        setTargetWpm(220);
       }
     };
     void loadCalibration();
@@ -87,8 +101,11 @@ export default function SessionConfigScreen() {
         <div className="rounded-2xl border border-white/10 bg-white/4 p-6">
           <WpmSlider
             value={targetWpm}
-            onChange={setTargetWpm}
-            recommendedWpm={summary?.recommended_wpm ?? calibratedWpm ?? undefined}
+            onChange={(val) => {
+              setTargetWpm(val);
+              setLastSelectedWpm(val);
+            }}
+            recommendedWpm={summary?.recommended_wpm ?? (calibratedWpm ? Math.min(500, Math.round((calibratedWpm + 20) / 10) * 10) : undefined)}
           />
         </div>
 
@@ -124,94 +141,52 @@ export default function SessionConfigScreen() {
           </div>
         </div>
 
-        {/* Reading Aids */}
+        {/* Active Settings Summary */}
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Reading Aids</h2>
-          <div className="rounded-2xl border border-white/10 bg-white/4 divide-y divide-white/8">
-            {/* Chunk size */}
-            <div className="flex items-center justify-between px-5 py-4">
-              <div>
-                <p className="text-sm font-medium text-white">Chunk Size</p>
-                <p className="text-xs text-slate-500">Words highlighted at once</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Active Settings</h2>
+            <button 
+              onClick={() => navigate("/settings")}
+              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5"
+            >
+              <span>⚙️</span> Change
+            </button>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/4 py-4 px-2">
+            <div className="grid grid-cols-3 gap-2 divide-x divide-white/10">
+              <div className="px-3 text-center">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Highlight</p>
+                <p className="text-sm font-semibold text-white">{chunkSize} Words</p>
               </div>
-              <div className="flex gap-2">
-                {CHUNK_SIZES.map((cs) => (
-                  <button
-                    key={cs.value}
-                    onClick={() => setChunkSize(cs.value)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                      chunkSize === cs.value
-                        ? "bg-indigo-500 text-white"
-                        : "bg-white/8 text-slate-400 hover:text-white"
-                    )}
-                  >
-                    {cs.value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Pacing guide */}
-            <div className="flex items-center justify-between px-5 py-4">
-              <div>
-                <p className="text-sm font-medium text-white">Pacing Guide</p>
-                <p className="text-xs text-slate-500">Horizontal line to follow along</p>
-              </div>
-              <button
-                onClick={() => setGuideEnabled(!guideEnabled)}
-                className={cn(
-                  "relative h-6 w-10 rounded-full transition-colors",
-                  guideEnabled ? "bg-indigo-500" : "bg-white/15"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  guideEnabled ? "translate-x-4.5" : "translate-x-0.5"
-                )} />
-              </button>
-            </div>
-
-            {/* Fading */}
-            <div className={cn(
-              "flex items-center justify-between px-5 py-4 transition-opacity",
-              (summary?.sessions_completed ?? 0) < 10 && "opacity-50"
-            )}>
-              <div>
-                <p className="text-sm font-medium text-white flex items-center gap-1.5">
-                  Text Fading
-                  {(summary?.sessions_completed ?? 0) < 10 && (
-                    <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                      🔒 Unlocks at 10 sessions
-                    </span>
-                  )}
+              <div className="px-3 text-center">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Guide Line</p>
+                <p className={cn("text-sm font-semibold", guideEnabled ? "text-white" : "text-slate-500")}>
+                  {guideEnabled ? "Enabled" : "Off"}
                 </p>
-                <p className="text-xs text-slate-500">Read text fades — trains forward momentum</p>
               </div>
-              <button
-                disabled={(summary?.sessions_completed ?? 0) < 10}
-                onClick={() => setFadingEnabled(!fadingEnabled)}
-                className={cn(
-                  "relative h-6 w-10 rounded-full transition-colors",
-                  fadingEnabled ? "bg-indigo-500" : "bg-white/15",
-                  (summary?.sessions_completed ?? 0) < 10 && "cursor-not-allowed"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  fadingEnabled ? "translate-x-4.5" : "translate-x-0.5"
-                )} />
-              </button>
+              <div className="px-3 text-center">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Text Fading</p>
+                <p className={cn("text-sm font-semibold", fadingEnabled ? "text-white" : "text-slate-500")}>
+                  {fadingEnabled ? "Enabled" : "Off"}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-            {error === "POOL_EXHAUSTED"
-              ? "No more passages available for this domain — try a different one."
-              : error}
+          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <p>
+              {error === "POOL_EXHAUSTED"
+                ? "No more passages available for this domain."
+                : error}
+            </p>
+            {error === "POOL_EXHAUSTED" && selectedDomain !== "random" && (
+              <Button size="sm" variant="secondary" className="border-red-400/20 text-red-300 hover:bg-red-400/10 shrink-0" onClick={() => setSelectedDomain("random")}>
+                🎲 Surprise Me Instead
+              </Button>
+            )}
           </div>
         )}
 
