@@ -1,0 +1,39 @@
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/dist/
+**/build/
+
+# TypeScript incremental build
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Vite cache
+.vite/
+
+# Prisma generated client (regenerated on install)
+# client itself is kept, but leave this note
+# server/src/generated/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

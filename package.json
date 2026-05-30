@@ -1,0 +1,21 @@
+{
+  "name": "readshift",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=client\" \"npm run dev --workspace=server\"",
+    "build": "npm run build --workspace=client && npm run build --workspace=server",
+    "lint": "npm run lint --workspace=client && npm run lint --workspace=server",
+    "type-check": "npm run type-check --workspace=client && npm run type-check --workspace=server",
+    "qa:lighthouse:reading": "npx lighthouse http://localhost:5173/session/reading --chrome-flags=\"--headless\" --only-categories=performance,accessibility,best-practices --output=json --output-path=./artifacts/lighthouse-reading.json",
+    "qa:e2e:staging": "npx playwright test -c e2e/playwright.config.ts",
+    "qa:e2e:staging:headed": "npx playwright test -c e2e/playwright.config.ts --headed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

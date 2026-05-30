@@ -1,0 +1,50 @@
+/**
+ * client/src/index.css
+ *
+ * Global styles entry point.
+ *
+ * What this file will do:
+ *  - Import Tailwind CSS base, components, and utilities layers.
+ *  - Define CSS custom properties (design tokens) for the ReadShift theme.
+ *  - Set global resets and base typographic styles.
+ *  - Import Google Font (Inter or similar).
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 9 11 17;
+  --surface: 15 23 42;
+  --surface-2: 30 41 59;
+  --text: 248 250 252;
+  --text-muted: 148 163 184;
+  --primary: 99 102 241;
+  --primary-strong: 79 70 229;
+  --border: 71 85 105;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 40%),
+    radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.12), transparent 35%),
+    rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}

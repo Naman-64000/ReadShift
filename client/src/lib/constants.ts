@@ -1,0 +1,82 @@
+/**
+ * client/src/lib/constants.ts
+ * Application-wide constants derived from the ReadShift spec.
+ */
+
+import type { Domain, ColWidth } from "@/types";
+
+// ── WPM Levels ────────────────────────────────────────────────
+export const WPM_LEVELS: Record<
+  1 | 2 | 3 | 4,
+  { label: string; min: number; max: number; description: string }
+> = {
+  1: { label: "Beginner",     min: 150, max: 250, description: "Building foundation" },
+  2: { label: "Intermediate", min: 250, max: 350, description: "Developing fluency" },
+  3: { label: "Advanced",     min: 350, max: 450, description: "Competitive pace" },
+  4: { label: "Expert",       min: 450, max: 500, description: "Elite reading speed" },
+};
+
+// ── WPM Slider ────────────────────────────────────────────────
+export const MIN_WPM = 150;
+export const MAX_WPM = 500;
+export const DEFAULT_WPM = 280;
+export const WPM_MIN = 150;
+export const WPM_MAX = 500;
+export const WPM_STEP = 10;
+export const WPM_DEFAULT = 280;
+
+// ── Domains ───────────────────────────────────────────────────
+export const DOMAINS: { value: Domain; label: string; description: string; emoji: string }[] = [
+  { value: "business",  label: "Business",       description: "Economics, markets, strategy, corporate dynamics",  emoji: "📈" },
+  { value: "science",   label: "Science",         description: "Research findings, biology, physics, technology",   emoji: "🔬" },
+  { value: "history",   label: "History",         description: "Historical events, cultural shifts, social change", emoji: "🏛️" },
+  { value: "abstract",  label: "Abstract",        description: "Philosophy, logic, conceptual reasoning",           emoji: "💡" },
+  { value: "social",    label: "Social Science",  description: "Psychology, sociology, human behaviour",           emoji: "🧠" },
+];
+
+// ── Reading Aids ──────────────────────────────────────────────
+export const CHUNK_SIZES: { value: 3 | 4; label: string; description: string }[] = [
+  { value: 3, label: "3 words", description: "Focused chunks — better for denser text" },
+  { value: 4, label: "4 words", description: "Wider chunks — faster pacing" },
+];
+
+export const FONT_SIZES: { value: 16 | 18 | 21; label: string }[] = [
+  { value: 16, label: "Small (16px)" },
+  { value: 18, label: "Medium (18px)" },
+  { value: 21, label: "Large (21px)" },
+];
+
+export const COL_WIDTHS: { value: ColWidth; label: string; description: string; maxWidth: string }[] = [
+  { value: "narrow", label: "Narrow",  description: "~60ch — minimises line length, reduces saccades", maxWidth: "38rem" },
+  { value: "medium", label: "Medium",  description: "~75ch — balanced for most reading speeds",         maxWidth: "52rem" },
+  { value: "wide",   label: "Wide",    description: "~90ch — maximises visible words per line",          maxWidth: "65rem" },
+];
+
+// ── Passage Pool ──────────────────────────────────────────────
+export const PASSAGE_WORD_MIN = 250;
+export const PASSAGE_WORD_MAX = 350;
+export const CALIBRATION_WORD_COUNT = 100;
+export const PASSAGE_POOL_TARGET = 50; // per domain-level combo
+
+// ── Session Phases ────────────────────────────────────────────
+export const SESSION_PHASES = ["idle", "config", "reading", "mcq", "results"] as const;
+
+// ── Question Types ────────────────────────────────────────────
+export const QUESTION_TYPE_LABELS: Record<string, string> = {
+  main_idea: "Main Idea",
+  inference: "Inference",
+  vocab:     "Vocabulary in Context",
+};
+
+// ── Comprehension Threshold ───────────────────────────────────
+export const COMPREHENSION_PASS_THRESHOLD = 2; // out of 3
+export const WEAK_DOMAIN_ACCURACY_THRESHOLD = 60; // percent
+
+// ── Streaks ───────────────────────────────────────────────────
+export const STREAK_MILESTONE = 7; // days — triggers celebration UI
+
+// ── Adaptive Difficulty ───────────────────────────────────────
+/** Sessions needed with ≥ COMPREHENSION_PASS_THRESHOLD to level up */
+export const LEVEL_UP_CONSECUTIVE_SESSIONS = 3;
+/** WPM bump when recommending next session */
+export const WPM_RECOMMENDATION_INCREMENT = 25;

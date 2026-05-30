@@ -1,0 +1,613 @@
+# ⚡ ReadShift — Speed Reading Trainer
+
+> Train your brain to read faster without sacrificing comprehension.
+> Targeting GMAT · CAT · Competitive Exam Candidates
+> `v1.0 · May 2026`
+
+---
+
+## Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [Tech Stack](#2-tech-stack)
+3. [Monorepo Structure](#3-monorepo-structure)
+4. [Prerequisites](#4-prerequisites)
+5. [Local Development Setup](#5-local-development-setup)
+6. [Environment Variables](#6-environment-variables)
+7. [Database Setup](#7-database-setup)
+8. [Running the App](#8-running-the-app)
+9. [Background Jobs](#9-background-jobs)
+10. [Database Schema](#10-database-schema)
+11. [API Reference](#11-api-reference)
+12. [Build Phases & Milestones](#12-build-phases--milestones)
+13. [Deployment](#13-deployment)
+14. [Scientific Foundation](#14-scientific-foundation)
+15. [Known Deviations](#15-known-deviations)
+
+---
+
+## 1. Project Overview
+
+ReadShift is a web application that trains exam candidates to read faster without degrading comprehension. It uses three clinically-backed techniques — phrase-chunk highlighting, text fading (Reading Acceleration Effect), and a pacing guide — combined in an adaptive session engine that responds to a user's real-time WPM baseline.
+
+### Core Goals
+
+- Increase reading speed by **20–40%** over 4–6 weeks of daily practice
+- Maintain or improve comprehension accuracy (target: ≥ 75% MCQ accuracy at target WPM)
+- Use cognitively realistic techniques — no artificial one-word RSVP flashing
+- Serve high-quality, exam-relevant passages dynamically (no repeated content)
+- Give users clear progress feedback: WPM trend, accuracy trend, session history
+
+---
+
+## 2. Tech Stack
+
+### Frontend (`/client`)
+
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| React | 18 | Component architecture for the session state machine |
+| TypeScript | 5.4 | End-to-end type safety |
+| Vite | 5 | Build tooling and dev server |
+| Tailwind CSS | 3.4 | Utility-first styling |
+| Framer Motion | 11 | Chunk highlight transitions and animations |
+| Zustand | 4.5 | Lightweight state management (session + user state) |
+| React Router | v6 | Client-side routing |
+| Recharts | 2.12 | WPM and accuracy trend charts on dashboard |
+| Axios | 1.7 | HTTP client with interceptors for auth |
+| Supabase Auth JS | 2.x | Authentication UI/session management via Supabase Auth |
+
+### Backend (`/server`)
+
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| Node.js | 20 LTS | Runtime |
+| TypeScript | 5.4 | Type-safe server code |
+| Express | 4.19 | HTTP framework |
+| Prisma | 5.14 | Type-safe ORM, schema-as-code, migrations |
+| PostgreSQL | 15 | Primary relational database |
+| Redis | 7 | BullMQ job queue backing store |
+| BullMQ | 5.7 | Background job queue (passage generation, pool health) |
+| ioredis | 5.3 | Redis client (BullMQ-compatible) |
+| Pino | 9 | Structured JSON logging |
+| Zod | 3.23 | Runtime request body validation |
+| jose | 5 | JWT verification (Supabase JWKS) |
+| @google/generative-ai | 0.24 | Google Gemini API for passage + MCQ generation |
+
+---
+
+## 3. Monorepo Structure
+
+```
+ReadShift/                          # Monorepo root
+├── package.json                    # Workspace root (npm workspaces)
+├── docker-compose.yml              # Local PostgreSQL + Redis
+├── .env.example                    # All required env vars (copy → .env)
+├── .gitignore
+│
+├── prisma/
+│   ├── schema.prisma               # Complete DB schema (8 tables)
+│   └── seed.ts                     # Dev/staging seed data
+│
+├── client/                         # React 18 + Vite frontend
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx                # Entry point — mounts React + Clerk + Router
+│       ├── App.tsx                 # Route tree
+│       ├── index.css               # Tailwind base + design tokens
+│       │
+│       ├── screens/                # One file per screen/route
+│       │   ├── OnboardingScreen.tsx
+│       │   ├── CalibrationScreen.tsx
+│       │   ├── SessionConfigScreen.tsx
+│       │   ├── ReadingScreen.tsx
+│       │   ├── MCQScreen.tsx
+│       │   ├── ResultsScreen.tsx
+│       │   ├── DashboardScreen.tsx
+│       │   └── SettingsScreen.tsx
+│       │
+│       ├── components/
+│       │   ├── session/            # Reading engine, WPM slider, MCQ card, result card, progress bar
+│       │   ├── dashboard/          # WPM chart, accuracy chart, stat card, streak badge, recommendation card
+│       │   ├── onboarding/         # Domain selector, reading aid toggle, step indicator
+│       │   └── shared/             # Button, Navbar, LoadingSpinner, ErrorBoundary, Toast
+│       │
+│       ├── store/                  # Zustand state slices
+│       │   ├── index.ts            # Barrel export
+│       │   ├── userSlice.ts        # User + preferences state
+│       │   ├── sessionSlice.ts     # Active session state machine
+│       │   ├── dashboardSlice.ts   # Dashboard summary cache
+│       │   └── uiSlice.ts          # Toasts, modals, fullscreen
+│       │
+│       ├── hooks/                  # Custom React hooks
+│       │   ├── useReadingTimer.ts  # Drift-corrected interval timer
+│       │   ├── useSession.ts       # Session store wrapper + computed values
+│       │   ├── useDashboard.ts     # Dashboard data fetcher
+│       │   └── useUserProfile.ts   # User profile loader
+│       │
+│       ├── lib/
+│       │   ├── apiClient.ts        # Axios instance + Clerk JWT interceptor
+│       │   ├── clerkConfig.ts      # Clerk publishable key + appearance
+│       │   ├── utils.ts            # WPM math, formatting helpers
+│       │   └── constants.ts        # WPM levels, domains, allowed values
+│       │
+│       └── types/                  # TypeScript interfaces
+│           ├── index.ts            # Barrel export
+│           ├── user.ts             # User, UserPreferences, Domain
+│           ├── passage.ts          # Passage, Question, PassageWithQuestions
+│           ├── session.ts          # Session, SessionResult, SessionSubmitPayload
+│           ├── calibration.ts      # Calibration
+│           ├── dashboard.ts        # DashboardSummary, WpmDataPoint, DomainAccuracy
+│           └── api.ts              # ApiSuccess, ApiError, ApiResponse<T>
+│
+└── server/                         # Node.js + Express backend
+    ├── package.json
+    ├── tsconfig.json
+    └── src/
+        ├── index.ts                # Express app entry + worker registration
+        │
+        ├── routes/                 # Router modules (thin — delegate to controllers)
+        │   ├── users.ts            # GET /me, POST /, PATCH /me/preferences, DELETE /me
+        │   ├── sessions.ts         # POST /start, POST /, GET /, GET /:id
+        │   ├── passages.ts         # GET /, POST /:id/flag
+        │   ├── calibrations.ts     # POST /, GET /, GET /latest
+        │   └── dashboard.ts        # GET /summary
+        │
+        ├── controllers/            # Request handlers (validate → call service → respond)
+        │   ├── users.ts
+        │   ├── sessions.ts
+        │   ├── passages.ts
+        │   ├── calibrations.ts
+        │   └── dashboard.ts
+        │
+        ├── services/               # Business logic (no Express types)
+        │   ├── sessionService.ts   # pickPassage(), createSession()
+        │   ├── passageService.ts   # getPoolDepth(), getUnseen(), flagPassage()
+        │   ├── dashboardService.ts # buildSummary()
+        │   ├── aiService.ts        # generatePassage(), generateQuestions()
+        │   └── authService.ts      # verifyToken(), getUserByClerkId()
+        │
+        ├── middleware/
+        │   ├── auth.ts             # requireAuth — validates Clerk JWT
+        │   ├── rateLimiter.ts      # globalRateLimit, sessionRateLimit
+        │   └── errorHandler.ts     # Global error → JSON envelope mapper
+        │
+        ├── jobs/                   # BullMQ workers
+        │   ├── passageWarmingJob.ts # Generates passages via Claude when pool is low
+        │   ├── poolHealthJob.ts     # Scheduled: checks pool depth, enqueues warming jobs
+        │   └── streakResetJob.ts    # Daily: resets streaks for inactive users
+        │
+        ├── lib/
+        │   ├── prisma.ts           # PrismaClient singleton
+        │   ├── redis.ts            # ioredis singleton (BullMQ-compatible)
+        │   ├── queue.ts            # BullMQ Queue instances + queue name constants
+        │   └── logger.ts           # Pino logger (pretty in dev, JSON in prod)
+        │
+        └── types/
+            └── index.ts            # AppError, AuthPayload, PassageGenerationJobData, pagination types
+```
+
+---
+
+## 4. Prerequisites
+
+| Requirement | Version | Install |
+| :--- | :--- | :--- |
+| Node.js | 20 LTS | [nodejs.org](https://nodejs.org) or `nvm install 20` |
+| npm | 10+ | Bundled with Node.js 20 |
+| Docker Desktop | Latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
+| Git | 2.x+ | Pre-installed on macOS |
+
+You will also need accounts and API keys for:
+- **Supabase** — [supabase.com](https://supabase.com) (Auth + anon/public keys)
+- **Google AI Studio** — [aistudio.google.com](https://aistudio.google.com) (Gemini API key)
+
+---
+
+## 5. Local Development Setup
+
+### Step 1 — Clone and install dependencies
+
+```bash
+git clone <repo-url> ReadShift
+cd ReadShift
+
+# Install all workspace dependencies (client + server + root)
+npm install
+```
+
+### Step 2 — Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in **all required values** (see [Environment Variables](#6-environment-variables)).
+
+### Step 3 — Start the database and Redis
+
+```bash
+# Starts PostgreSQL on :5432 and Redis on :6379
+docker compose up -d
+
+# Verify both containers are healthy
+docker compose ps
+```
+
+### Step 4 — Run database migrations and seed
+
+```bash
+# From the server workspace
+cd server
+
+# Generate the Prisma client
+npm run db:generate
+
+# Run all migrations (creates tables)
+npm run db:migrate
+
+# Seed with development data (optional)
+npm run db:seed
+
+cd ..
+```
+
+### Step 5 — Start the development servers
+
+```bash
+# From the monorepo root — starts both client and server in parallel
+npm run dev
+```
+
+| Service | URL |
+| :--- | :--- |
+| **Frontend** (Vite) | http://localhost:5173 |
+| **Backend** (Express) | http://localhost:3001 |
+| **Prisma Studio** | `npm run db:studio` (from `/server`) |
+
+---
+
+## 6. Environment Variables
+
+Copy `.env.example` → `.env` and set every value before running locally.
+
+| Variable | Required | Description |
+| :--- | :--- | :--- |
+| `NODE_ENV` | ✅ | `development` \| `staging` \| `production` |
+| `DATABASE_URL` | ✅ | Full Prisma PostgreSQL connection string |
+| `REDIS_URL` | ✅ | Redis connection URL |
+| `PORT` | ✅ | Express server port (default `3001`) |
+| `CORS_ORIGIN` | ✅ | Allowed CORS origin for the API (Vite dev: `http://localhost:5173`) |
+| `CLERK_SECRET_KEY` | ✅ | Clerk backend secret key (for JWT verification) |
+| `CLERK_PUBLISHABLE_KEY` | ✅ | Clerk publishable key |
+| `VITE_CLERK_PUBLISHABLE_KEY` | ✅ | Same as above — exposed to the Vite client |
+| `ANTHROPIC_API_KEY` | ✅ | Anthropic Claude API key |
+| `VITE_API_BASE_URL` | ✅ | Backend API base URL seen by the client |
+| `LOG_LEVEL` | ✅ | `debug` \| `info` \| `warn` \| `error` |
+| `PASSAGE_POOL_MIN_THRESHOLD` | ✅ | Passages per domain-level before top-up triggers (default `50`) |
+
+> **Security:** Never commit `.env` to git. The `.gitignore` is pre-configured to exclude it.
+
+---
+
+## 7. Database Setup
+
+### Schema overview
+
+The Prisma schema is at `prisma/schema.prisma` and defines **8 tables**:
+
+| Table | Purpose |
+| :--- | :--- |
+| `users` | Core identity record, linked to Clerk via `clerk_id` |
+| `user_prefs` | Reading preferences — one row per user |
+| `passages` | Shared AI-generated content pool (250–350 words each) |
+| `questions` | 3 MCQs per passage (main_idea, inference, vocab) |
+| `sessions` | One row per completed reading session |
+| `responses` | One MCQ answer row per question per session |
+| `calibrations` | Baseline WPM measurements per user |
+| `user_passage_seen` | Join table preventing passage repetition per user |
+
+### Common database commands
+
+```bash
+# From /server
+
+npm run db:generate    # Regenerate Prisma client after schema changes
+npm run db:migrate     # Apply pending migrations (creates new migration file)
+npm run db:seed        # Run prisma/seed.ts to populate dev data
+npm run db:studio      # Open Prisma Studio at http://localhost:5555
+```
+
+---
+
+## 8. Running the App
+
+### Development (both services)
+
+```bash
+# From monorepo root
+npm run dev
+```
+
+### Development (individual services)
+
+```bash
+# Frontend only
+cd client && npm run dev
+
+# Backend only
+cd server && npm run dev
+```
+
+### Type checking
+
+```bash
+# Check both client and server
+npm run type-check
+
+# Or individually
+cd client && npm run type-check
+cd server && npm run type-check
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+---
+
+## 9. Background Jobs
+
+Three BullMQ workers run inside the server process:
+
+| Job | Queue | Schedule | Purpose |
+| :--- | :--- | :--- | :--- |
+| `passageWarmingJob` | `passage-warming` | On-demand | Calls Claude to generate passages + MCQs when pool is low |
+| `poolHealthJob` | `pool-health` | Every 30 min | Checks passage pool depth per domain-level, enqueues warming jobs |
+| `streakResetJob` | `streak-reset` | Daily at midnight UTC | Resets streaks for users with no activity in 24h |
+
+Workers are started automatically when `server/src/index.ts` boots. They share the Redis connection from `server/src/lib/redis.ts`.
+
+---
+
+## 10. Database Schema
+
+### Passage Levels → WPM Ranges
+
+| Level | WPM Range | Target User |
+| :--- | :--- | :--- |
+| 1 | 150–200 WPM | Beginner |
+| 2 | 200–280 WPM | Intermediate |
+| 3 | 280–350 WPM | Advanced |
+| 4 | 350–400+ WPM | Expert |
+
+### Content Domains
+
+`business` · `science` · `history` · `abstract` · `social`
+
+**Pool target:** 50 passages × 5 domains × 4 levels = **800 passages** before any user sees a repeat.
+
+### Session State Machine
+
+```
+idle → config → reading → mcq → results → idle
+```
+
+Each state maps to a screen:
+
+| State | Screen | Route |
+| :--- | :--- | :--- |
+| `idle` | — | Redirect to `/dashboard` |
+| `config` | SessionConfigScreen | `/session/config` |
+| `reading` | ReadingScreen | `/session/reading` |
+| `mcq` | MCQScreen | `/session/mcq` |
+| `results` | ResultsScreen | `/session/results` |
+
+---
+
+## 11. API Reference
+
+All API routes are prefixed with `/api`. All protected routes require a Supabase JWT in the `Authorization: Bearer <token>` header.
+
+### Users
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/users/me` | ✅ | Get authenticated user + preferences |
+| `POST` | `/api/users` | ✅ | Create user record on first Clerk login |
+| `PATCH` | `/api/users/me/preferences` | ✅ | Update reading preferences (partial) |
+| `DELETE` | `/api/users/me` | ✅ | Delete account and all associated data |
+
+### Sessions
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/sessions/start` | ✅ | Pick an unseen passage; returns `{ passage, questions }` |
+| `POST` | `/api/sessions` | ✅ | Submit a completed session with MCQ responses |
+| `GET` | `/api/sessions` | ✅ | List session history (paginated) |
+| `GET` | `/api/sessions/:id` | ✅ | Get a single session by ID |
+
+### Passages
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/passages` | ✅ | List passages with pool depth summary (admin) |
+| `POST` | `/api/passages/:id/flag` | ✅ | Flag a passage for quality review |
+
+### Calibrations
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/calibrations` | ✅ | Submit a calibration result |
+| `GET` | `/api/calibrations` | ✅ | List all calibrations for the user |
+| `GET` | `/api/calibrations/latest` | ✅ | Get the most recent (current baseline) |
+
+### Dashboard
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/dashboard/summary` | ✅ | Full dashboard summary (WPM trend, accuracy, streak, recommendation) |
+
+### API Response Envelope
+
+All responses follow a consistent shape:
+
+```json
+// Success
+{ "success": true, "data": { ... } }
+
+// Error
+{ "success": false, "error": { "code": "POOL_EXHAUSTED", "message": "No passages available for this domain." } }
+```
+
+### Known Error Codes
+
+| Code | HTTP | Meaning |
+| :--- | :--- | :--- |
+| `POOL_EXHAUSTED` | 404 | No unseen passages for the selected domain/level |
+| `UNAUTHORIZED` | 401 | Missing or invalid JWT |
+| `FORBIDDEN` | 403 | Authenticated but not permitted |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `VALIDATION_ERROR` | 400 | Request body failed Zod validation |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+---
+
+## 12. Build Phases & Milestones
+
+### Phase 1 — Core Reading Engine (Weeks 1–2)
+> **Goal:** A user can read a hardcoded passage with chunk highlighting and see their WPM at the end.
+
+- [x] Implement `useReadingTimer` with drift-corrected interval
+- [x] Build `ReadingEngine` component (chunking, highlighting, fading, guide)
+- [x] Build `WpmSlider` and `SessionConfigScreen`
+- [x] Build basic `ResultsScreen`
+- [~] Verify: timer accurate within 200ms over a full session on Chrome, Firefox, Safari, Chrome Android (Playwright harness added; staging/browser-run evidence pending)
+
+### Phase 2 — Backend + Auth + DB (Weeks 3–4)
+> **Goal:** Users can create accounts, sessions are saved, passages are fetched from the database.
+
+- [x] Configure auth + `requireAuth` middleware (implemented with Supabase JWT verification)
+- [x] Implement `authService.verifyToken()` and user lookup/create service
+- [x] Implement all route controllers (users, sessions, calibrations)
+- [x] Implement `sessionService.pickPassage()` and `createSession()`
+- [x] Seed DB with manual passages for testing (`prisma/seed.ts`)
+- [x] Build `CalibrationScreen` and `calibrationsController`
+
+### Phase 3 — AI Content Pipeline + Dashboard (Weeks 5–6)
+> **Goal:** Claude generates passages and MCQs. Dashboard shows real data.
+
+- [x] Implement `aiService.generatePassage()` and `generateQuestions()` (Gemini-based implementation)
+- [x] Implement `passageWarmingJob` BullMQ worker
+- [x] Implement `poolHealthJob` scheduler
+- [x] Implement `dashboardService.buildSummary()`
+- [x] Build `DashboardScreen` with `WpmChart` and `AccuracyChart`
+- [x] Build `MCQScreen` with per-question timer
+
+### Phase 4 — Polish + Launch (Weeks 7–8)
+> **Goal:** App feels complete: smooth UX, adaptive difficulty, onboarding, error handling.
+
+- [x] Implement adaptive difficulty (level promotion logic)
+- [x] Build `OnboardingScreen` multi-step flow
+- [x] Implement `SettingsScreen` with auto-save preferences
+- [~] Polish all animations (Framer Motion)
+- [~] Ensure mobile responsiveness (375px viewport) - ReadingScreen pass completed; full app pass pending
+- [ ] Lighthouse score ≥ 85 on ReadingScreen
+- [ ] All E2E tests pass in staging
+
+### Milestones
+
+| Milestone | Week | Done When |
+| :--- | :--- | :--- |
+| M1: Reading Engine | 2 | Chunk highlighting + timer accurate across 4 browsers |
+| M2: Auth + DB | 4 | Registration, session save, no passage repeats |
+| M3: AI Content | 6 | Claude generates, MCQs work, scores saved |
+| M4: Full Dashboard | 6 | WPM trend + accuracy charts show real data < 300ms |
+| M5: Adaptive Difficulty | 7 | Level promotion fires correctly on seeded test data |
+| M6: Production Launch | 8 | All Phase 4 criteria passed, custom domain live |
+
+---
+
+## 13. Deployment
+
+### Frontend — Vercel
+
+```bash
+cd client
+npm run build        # Outputs to client/dist/
+# Deploy dist/ to Vercel via CLI or GitHub integration
+```
+
+Set all `VITE_*` environment variables in the Vercel project settings.
+
+### Backend — Railway (preferred) or Render
+
+```bash
+cd server
+npm run build        # Compiles TypeScript to dist/
+npm start            # Runs node dist/index.js
+```
+
+Set all non-`VITE_*` environment variables in the Railway/Render dashboard.
+
+**Railway-specific:** Use Railway's managed PostgreSQL and Redis add-ons. The connection URLs are injected automatically — set `DATABASE_URL` and `REDIS_URL` from Railway's variable references.
+
+### Database migrations in production
+
+```bash
+# Run from the server directory in CI/CD before starting the server
+npx prisma migrate deploy
+```
+
+---
+
+## 14. Scientific Foundation
+
+### Technique 1 — Phrase Chunk Highlighting
+Fluent readers make 3–4 fixations per line, each covering a 3–5 word cluster. The app advances a highlight box in phrase-sized chunks (3–4 words) at the user's target WPM. The full text remains visible — unlike RSVP, peripheral vision is engaged and re-reading is possible.
+
+### Technique 2 — Text Fading (Reading Acceleration Effect)
+A 2024 Frontiers in Psychology study (N=90) found participants read **40% faster** under the Reading Acceleration Procedure while maintaining the same comprehension. In fading mode, text behind the highlight fades to 20% opacity after a short delay, training forward momentum without fully removing the text. Off by default.
+
+### Technique 3 — Pacing Guide (Meta-Guiding)
+A 1px horizontal guide line moves down the passage at the line-crossing rate. Suppresses regressions (the habit of re-reading) and gives the eye a target to follow. Enabled by default.
+
+### What the App Does NOT Use
+
+| Technique | Why Excluded |
+| :--- | :--- |
+| **Pure RSVP (1-word flash)** | Eliminates natural eye movement; comprehension drops sharply on dense argumentative text |
+| **Bionic Reading** | 2025 eye-tracking study found no significant difference in fixation duration, count, or speed vs standard text |
+| **Subvocalization elimination** | Fully eliminating inner speech reduces comprehension on complex text — the app reduces, not eliminates |
+
+---
+
+> *This repository is the authoritative reference for the ReadShift v1 build. Questions about any section should be directed to the product lead. Updates require a version bump.*
+
+---
+
+## 15. Known Deviations
+
+The original implementation plan and some inline docs were drafted for a different stack. Current code intentionally deviates in the following ways:
+
+1. Auth provider
+- Plan/docs reference: Clerk.
+- Current implementation: Supabase Auth (`SUPABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) with backend JWT verification via Supabase JWKS.
+
+2. AI provider
+- Plan/docs reference: Claude/Anthropic.
+- Current implementation: Google Gemini (`GEMINI_API_KEY`) in `server/src/services/aiService.ts`.
+
+3. Quality-gate automation
+- Added executable QA commands/specs:
+  - `npm run qa:lighthouse:reading`
+  - `npm run qa:e2e:staging`
+  - `docs/quality-gates.md`
+  - `e2e/playwright.config.ts`
+  - `e2e/specs/quality-gates.spec.ts`
