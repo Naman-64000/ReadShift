@@ -47,10 +47,10 @@ export default function MCQCard({
   return (
     <motion.div
       key={question.id}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.25 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2 }}
       className="w-full max-w-2xl mx-auto space-y-6"
     >
       {/* Header */}

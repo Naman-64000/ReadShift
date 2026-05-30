@@ -29,7 +29,10 @@ export default function AccuracyChart({ data }: AccuracyChartProps) {
         <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
         <YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
         <Tooltip
+          cursor={false}
           contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+          itemStyle={{ color: "#e2e8f0" }}
+          labelStyle={{ color: "#94a3b8" }}
           formatter={(v: number, _name: string, item) => [
             `${v}% (${(item?.payload as DomainAccuracy | undefined)?.sessions ?? 0} sessions)`, "Accuracy"
           ]}

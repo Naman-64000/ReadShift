@@ -22,8 +22,6 @@ export default function ReadingScreen() {
   const [isReady, setIsReady] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
-  const [savedElapsedMs, setSavedElapsedMs] = useState(0);
-
   useEffect(() => {
     if (!preferences) fetchProfile();
   }, [preferences, fetchProfile]);
@@ -42,8 +40,8 @@ export default function ReadingScreen() {
   }, [setFullscreen]);
 
   const handleComplete = (elapsed: number) => {
-    setSavedElapsedMs(elapsed);
-    setIsFinished(true);
+    markReadingDone(elapsed);
+    navigate("/session/mcq");
   };
 
   const { currentChunkIndex, elapsedMs, isPaused, isRunning, start, pause, resume, reset } =
@@ -94,7 +92,8 @@ export default function ReadingScreen() {
             <motion.div 
               initial={{ opacity: 0, y: 15 }} 
               animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-6 text-slate-200 text-base sm:text-lg leading-relaxed select-text font-serif bg-[#0d1527]/50 border border-white/8 p-6 sm:p-10 rounded-2xl shadow-2xl"
+              className="w-full space-y-6 text-slate-200 leading-relaxed select-text font-serif bg-[#0d1527]/50 border border-white/8 p-6 sm:p-10 rounded-2xl shadow-2xl"
+              style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
             >
               {passage.passage.body.split(/\n\s*\n/).map((p, idx) => (
                 <p key={idx}>{p.trim()}</p>
@@ -105,7 +104,7 @@ export default function ReadingScreen() {
                 size="lg"
                 className="shadow-2xl shadow-indigo-500/20 animate-pulse"
                 onClick={() => {
-                  markReadingDone(savedElapsedMs || elapsedMs);
+                  markReadingDone(elapsedMs);
                   navigate("/session/mcq");
                 }}
               >
@@ -154,9 +153,10 @@ export default function ReadingScreen() {
               fadingEnabled={config.fading_enabled}
               guideEnabled={config.guide_enabled}
               colWidth={config.fading_enabled ? "medium" : "medium"}
-              fontSizePx={18}
+              fontSizePx={preferences?.font_size_px ?? 18}
               highlightIntensity={preferences?.highlight_intensity ?? "moderate"}
               autoCenterScroll={preferences?.auto_center_scroll ?? true}
+              isPaused={isPaused || !isReady}
             />
           </div>
 
@@ -217,13 +217,13 @@ export default function ReadingScreen() {
               <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Elapsed Time</p>
                 <p className="text-lg font-mono font-bold text-white mt-1">
-                  {msToTime(savedElapsedMs || elapsedMs)}
+                  {msToTime(elapsedMs)}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Achieved Speed</p>
                 <p className="text-lg font-mono font-bold text-indigo-400 mt-1">
-                  {calculateActualWpm(passage.passage.word_count, savedElapsedMs || elapsedMs)} WPM
+                  {calculateActualWpm(passage.passage.word_count, elapsedMs)} WPM
                 </p>
               </div>
             </div>
@@ -231,7 +231,7 @@ export default function ReadingScreen() {
             <div className="flex flex-col gap-3 pt-2">
               <Button
                 onClick={() => {
-                  markReadingDone(savedElapsedMs || elapsedMs);
+                  markReadingDone(elapsedMs);
                   navigate("/session/mcq");
                 }}
                 className="w-full justify-center shadow-lg shadow-indigo-500/20 font-bold"

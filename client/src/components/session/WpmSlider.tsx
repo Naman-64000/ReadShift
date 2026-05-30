@@ -67,11 +67,9 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
 
         {/* Level markers */}
         <div className="flex justify-between mt-2 px-1 text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
-          <span>{WPM_MIN}</span>
-          <span>250</span>
-          <span>350</span>
-          <span>450</span>
-          <span>{WPM_MAX}</span>
+          {[150, 200, 250, 300, 350, 400, 450, 500].map((w) => (
+            <span key={w}>{w}</span>
+          ))}
         </div>
       </div>
 

@@ -105,8 +105,8 @@ export default function MCQScreen() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center px-4 py-8">
-      <div className={cn("w-full transition-all duration-500", showPassage ? "max-w-6xl" : "max-w-2xl")}>
+    <div className="min-h-[calc(100vh-3.5rem)] pt-20 sm:pt-24 flex items-start justify-center px-4 py-8">
+      <div className={cn("w-full transition-all duration-500", showPassage ? "max-w-7xl" : "max-w-2xl")}>
         
         {/* Header split or centered */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/5 pb-4 mb-6">
@@ -132,7 +132,7 @@ export default function MCQScreen() {
         </div>
 
         {/* Outer container grid */}
-        <div className={cn("grid gap-8 items-start", showPassage ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
+        <div className={cn("grid gap-8 items-start", showPassage ? "grid-cols-1 md:grid-cols-[7fr_3fr]" : "grid-cols-1")}>
           
           {/* Left Column: Passage (Normal View) */}
           {showPassage && (
@@ -140,12 +140,15 @@ export default function MCQScreen() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="w-full bg-[#0d1527]/50 border border-white/8 rounded-2xl p-6 sm:p-8 space-y-4 max-h-[60vh] overflow-y-auto shadow-2xl custom-scrollbar"
+              className="w-full bg-[#0d1527]/50 border border-white/8 rounded-2xl p-6 sm:p-8 space-y-4 max-h-[65vh] overflow-y-auto shadow-2xl custom-scrollbar"
             >
               <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 border-b border-indigo-500/10 pb-2">
                 Passage Content
               </h3>
-              <div className="space-y-4 text-slate-200 text-sm sm:text-[15px] leading-relaxed select-text font-serif">
+              <div 
+                className="space-y-4 text-slate-200 leading-relaxed select-text font-serif"
+                style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
+              >
                 {passage.passage.body.split(/\n\s*\n/).map((p, i) => (
                   <p key={i} className="indent-4 sm:indent-8">{p.trim()}</p>
                 ))}
@@ -177,17 +180,19 @@ export default function MCQScreen() {
               </div>
             )}
 
-            <AnimatePresence mode="wait">
-              <MCQCard
-                key={questions[currentQ]?.id}
-                question={questions[currentQ]}
-                questionNumber={currentQ + 1}
-                totalQuestions={questions.length}
-                selectedOption={selectedOption}
-                onAnswer={(idx) => handleAnswer(idx as any)}
-                isTimed={mcqTimerSeconds > 0}
-              />
-            </AnimatePresence>
+            <div className="min-h-[400px] flex flex-col justify-start">
+              <AnimatePresence mode="wait">
+                <MCQCard
+                  key={questions[currentQ]?.id}
+                  question={questions[currentQ]}
+                  questionNumber={currentQ + 1}
+                  totalQuestions={questions.length}
+                  selectedOption={selectedOption}
+                  onAnswer={(idx) => handleAnswer(idx as any)}
+                  isTimed={mcqTimerSeconds > 0}
+                />
+              </AnimatePresence>
+            </div>
 
             {/* Back / Next navigation for Untimed Mode */}
             {mcqTimerSeconds === 0 && (

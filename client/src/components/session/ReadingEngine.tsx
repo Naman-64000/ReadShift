@@ -18,6 +18,7 @@ interface ReadingEngineProps {
   fontSizePx: number;
   highlightIntensity: "subtle" | "moderate" | "intense";
   autoCenterScroll?: boolean;
+  isPaused?: boolean;
 }
 
 const colWidthClass: Record<ColWidth, string> = {
@@ -35,6 +36,7 @@ export default function ReadingEngine({
   fontSizePx,
   highlightIntensity,
   autoCenterScroll = true,
+  isPaused = false,
 }: ReadingEngineProps) {
   const activeChunkRef = useRef<HTMLSpanElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -74,7 +76,7 @@ export default function ReadingEngine({
 
   // ── Fading Logic (1.5s Delay) ─────────────────────────────
   useEffect(() => {
-    if (!fadingEnabled) return;
+    if (!fadingEnabled || isPaused) return;
     
     // When currentChunkIndex increases, wait 1.5s before fading the previous chunks
     const timer = setTimeout(() => {
@@ -82,7 +84,7 @@ export default function ReadingEngine({
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [currentChunkIndex, fadingEnabled]);
+  }, [currentChunkIndex, fadingEnabled, isPaused]);
 
   const words = useMemo(
     () =>

@@ -168,7 +168,7 @@ export default function SettingsScreen() {
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
             Reading Display
           </h2>
-          <div className="rounded-2xl border border-white/10 bg-white/4 divide-y divide-white/8">
+          <div className="rounded-2xl border border-white/10 bg-white/4 divide-y divide-white/5">
             {/* Column Width */}
             <div 
               className="relative flex items-center justify-between px-5 py-4 transition-colors hover:bg-white/5 first:rounded-t-2xl"
@@ -329,10 +329,7 @@ export default function SettingsScreen() {
               onMouseEnter={() => allowHover && setHoveredPreview("highlightIntensity")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
-              {hoveredPreview === "highlightIntensity" && <HighlightIntensityPreview intensity={draft.highlight_intensity ?? "moderate"} isSavedActive={true} />}
-              {hoveredPreview === "intensitysubtle" && <HighlightIntensityPreview intensity="subtle" />}
-              {hoveredPreview === "intensitymoderate" && <HighlightIntensityPreview intensity="moderate" />}
-              {hoveredPreview === "intensityintense" && <HighlightIntensityPreview intensity="intense" />}
+              {hoveredPreview === "highlightIntensity" && <HighlightIntensityPreview />}
               
               <div>
                 <p className="text-sm font-medium text-white cursor-help">Highlight Focus</p>
@@ -342,8 +339,6 @@ export default function SettingsScreen() {
                 {(["subtle", "moderate", "intense"] as const).map((level) => (
                   <button
                     key={level}
-                    onMouseEnter={() => allowHover && setHoveredPreview(`intensity${level}`)}
-                    onMouseLeave={() => allowHover && setHoveredPreview("highlightIntensity")}
                     onClick={() => updateDraft({ highlight_intensity: level })}
                     className={cn(
                       "px-3 py-2 rounded-lg text-xs font-semibold transition-all border capitalize",
@@ -628,17 +623,19 @@ function MCQTimerPreview({ value }: { value: number }) {
   );
 }
 
-function HighlightIntensityPreview({
-  intensity,
-  isSavedActive = false,
-}: {
-  intensity: "subtle" | "moderate" | "intense";
-  isSavedActive?: boolean;
-}) {
-  const bgOpacity = intensity === "subtle" ? "bg-indigo-500/15" : intensity === "moderate" ? "bg-indigo-500/30" : "bg-indigo-500/60";
-  const borderOpacity = intensity === "subtle" ? "border-indigo-500/20" : intensity === "moderate" ? "border-indigo-500/40" : "border-indigo-500/80";
-  const paddingX = intensity === "subtle" ? "-inset-x-0.5 -inset-y-0" : intensity === "moderate" ? "-inset-x-2 -inset-y-0.5" : "-inset-x-3.5 -inset-y-1";
-  const glowShadow = intensity === "intense" ? "shadow-[0_0_14px_rgba(99,102,241,0.5)]" : "";
+function HighlightIntensityPreview() {
+  const [level, setLevel] = useState<"subtle" | "moderate" | "intense">("subtle");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLevel((prev) => {
+        if (prev === "subtle") return "moderate";
+        if (prev === "moderate") return "intense";
+        return "subtle";
+      });
+    }, 1500);
+    return () => clearInterval(timer);
+  }, []);
 
   const headings = {
     subtle: "Subtle (Soft Wash Focus)",
@@ -646,9 +643,11 @@ function HighlightIntensityPreview({
     intense: "Bold (High Intensity Focus)",
   };
 
-  const headingText = isSavedActive
-    ? `Active Focus: ${headings[intensity].split(" (")[0]}`
-    : headings[intensity];
+  const guidelines = {
+    subtle: "Best for minimal visual aid and natural pacing focus.",
+    moderate: "Ideal for standard speed training & structural rhythm.",
+    intense: "Excellent for aggressive speed building & complex text.",
+  };
 
   return (
     <motion.div 
@@ -656,14 +655,29 @@ function HighlightIntensityPreview({
       animate={{ opacity: 1, x: 0, y: "-50%" }}
       className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
     >
-      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
-        {headingText}
+      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center h-4">
+        {headings[level]}
       </div>
       <div className="relative py-4 text-center">
         <span className="relative text-slate-200 text-sm font-medium px-4 select-none">
-          <span className={cn("absolute rounded border -z-10 transition-all duration-300", bgOpacity, borderOpacity, paddingX, glowShadow)} />
+          <motion.span
+            animate={{
+              backgroundColor: level === "subtle" ? "rgba(99, 102, 241, 0.15)" : level === "moderate" ? "rgba(99, 102, 241, 0.30)" : "rgba(99, 102, 241, 0.60)",
+              borderColor: level === "subtle" ? "rgba(99, 102, 241, 0.20)" : level === "moderate" ? "rgba(99, 102, 241, 0.40)" : "rgba(99, 102, 241, 0.80)",
+              left: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : "-14px",
+              right: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : "-14px",
+              top: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : "-4px",
+              bottom: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : "-4px",
+              boxShadow: level === "intense" ? "0 0 14px rgba(99, 102, 241, 0.5)" : "0 0 0px rgba(99, 102, 241, 0)",
+            }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            className="absolute rounded border -z-10"
+          />
           Focus Word
         </span>
+      </div>
+      <div className="text-[10px] text-slate-500 mt-4 pt-3 border-t border-white/5 text-center leading-relaxed h-8">
+        {guidelines[level]}
       </div>
     </motion.div>
   );

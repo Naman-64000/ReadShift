@@ -45,6 +45,7 @@ export function useReadingTimer({
   const elapsedAtPauseRef = useRef<number>(0);  // elapsed ms accumulated before pause
   const chunkRef = useRef(0);                    // current chunk (avoids stale closure)
   const pausedRef = useRef(false);
+  const autoPausedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   const intervalRef = useRef(intervalMs);
   const extraDelayRef = useRef(extraDelayMsByNextChunk);
@@ -100,6 +101,7 @@ export function useReadingTimer({
     setElapsedMs(0);
     elapsedAtPauseRef.current = 0;
     pausedRef.current = false;
+    autoPausedRef.current = false;
     setIsPaused(false);
     setIsRunning(true);
 
@@ -137,6 +139,7 @@ export function useReadingTimer({
   const reset = useCallback(() => {
     clearTimer();
     pausedRef.current = false;
+    autoPausedRef.current = false;
     chunkRef.current = 0;
     elapsedAtPauseRef.current = 0;
     setCurrentChunkIndex(0);
@@ -145,17 +148,47 @@ export function useReadingTimer({
     setIsRunning(false);
   }, [clearTimer]);
 
-  // Pause when tab loses visibility, resume on return
+  // Pause when tab loses visibility or window loses focus, resume on return
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        if (isRunning && !pausedRef.current) pause();
-      } else {
-        if (isRunning && pausedRef.current) resume();
+    const handlePause = () => {
+      if (isRunning && !pausedRef.current) {
+        autoPausedRef.current = true;
+        pause();
       }
     };
+
+    const handleResume = () => {
+      if (isRunning && autoPausedRef.current) {
+        autoPausedRef.current = false;
+        resume();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        handlePause();
+      } else {
+        handleResume();
+      }
+    };
+
+    const handleWindowBlur = () => {
+      handlePause();
+    };
+
+    const handleWindowFocus = () => {
+      handleResume();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
   }, [isRunning, pause, resume]);
 
   // Auto-start if requested
