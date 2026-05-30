@@ -14,6 +14,7 @@ interface UseReadingTimerOptions {
   onComplete: (elapsedMs: number) => void;
   autoStart?: boolean;
   extraDelayMsByNextChunk?: Record<number, number>;
+  customChunkIntervalsMs?: number[]; // custom pacing per chunk index
 }
 
 interface ReadingTimerReturn {
@@ -33,6 +34,7 @@ export function useReadingTimer({
   onComplete,
   autoStart = false,
   extraDelayMsByNextChunk = {},
+  customChunkIntervalsMs,
 }: UseReadingTimerOptions): ReadingTimerReturn {
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -49,11 +51,13 @@ export function useReadingTimer({
   const onCompleteRef = useRef(onComplete);
   const intervalRef = useRef(intervalMs);
   const extraDelayRef = useRef(extraDelayMsByNextChunk);
+  const customIntervalsRef = useRef(customChunkIntervalsMs);
 
   // Keep refs in sync with latest values
   useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
   useEffect(() => { intervalRef.current = intervalMs; }, [intervalMs]);
   useEffect(() => { extraDelayRef.current = extraDelayMsByNextChunk; }, [extraDelayMsByNextChunk]);
+  useEffect(() => { customIntervalsRef.current = customChunkIntervalsMs; }, [customChunkIntervalsMs]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -68,7 +72,13 @@ export function useReadingTimer({
     const now = performance.now();
     const drift = now - expectedTickTime;             // positive = we're late
     const transitionExtra = extraDelayRef.current[chunkIdx + 1] ?? 0;
-    const targetInterval = intervalRef.current + transitionExtra;
+    
+    // Resolve dynamic LAAP or static interval
+    const baseInterval = customIntervalsRef.current && customIntervalsRef.current[chunkIdx] !== undefined
+      ? customIntervalsRef.current[chunkIdx]
+      : intervalRef.current;
+
+    const targetInterval = baseInterval + transitionExtra;
     const nextInterval = Math.max(0, targetInterval - drift);
 
     const nextChunk = chunkIdx + 1;
@@ -107,10 +117,15 @@ export function useReadingTimer({
 
     const now = performance.now();
     startWallTimeRef.current = now;
+
+    const firstInterval = customIntervalsRef.current && customIntervalsRef.current[0] !== undefined
+      ? customIntervalsRef.current[0]
+      : intervalRef.current;
+
     // First tick after one interval
     timerRef.current = setTimeout(
-      () => tick(now + intervalRef.current, 0),
-      intervalRef.current
+      () => tick(now + firstInterval, 0),
+      firstInterval
     );
   }, [isRunning, tick]);
 
@@ -129,10 +144,15 @@ export function useReadingTimer({
     setIsPaused(false);
     const now = performance.now();
     startWallTimeRef.current = now;
+
+    const resumeInterval = customIntervalsRef.current && customIntervalsRef.current[chunkRef.current] !== undefined
+      ? customIntervalsRef.current[chunkRef.current]
+      : intervalRef.current;
+
     // Continue from current chunk
     timerRef.current = setTimeout(
-      () => tick(now + intervalRef.current, chunkRef.current),
-      intervalRef.current
+      () => tick(now + resumeInterval, chunkRef.current),
+      resumeInterval
     );
   }, [isRunning, tick]);
 

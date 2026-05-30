@@ -72,12 +72,14 @@ export default function SessionConfigScreen() {
   const handleStart = async () => {
     setIsStarting(true);
     setError(null);
+    const drillLevel = location.state?.drillLevel as number | undefined;
     await startSession({
       target_wpm: targetWpm,
       chunk_size: chunkSize,
       fading_enabled: fadingEnabled,
       guide_enabled: guideEnabled,
       domain: selectedDomain === "random" ? undefined : selectedDomain,
+      level: drillLevel,
     });
     setIsStarting(false);
     // Only navigate if no error
@@ -86,12 +88,13 @@ export default function SessionConfigScreen() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-24 flex items-center justify-center px-4 py-12">
+    <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center px-4 py-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-xl space-y-10"
+        className="w-full max-w-xl space-y-5"
       >
+        {/* Header */}
         <div className="text-center space-y-1">
           <h1 className="text-3xl font-black text-white">Configure Session</h1>
           <p className="text-slate-400 text-sm">Set your pace and preferences for this reading session.</p>
@@ -109,14 +112,14 @@ export default function SessionConfigScreen() {
           />
         </div>
 
-        {/* Domain */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Content Domain</h2>
-          <div className="grid grid-cols-3 gap-2">
+        {/* Domain — compact horizontal scroll strip */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-0.5">Content Domain</h2>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
             <button
               onClick={() => setSelectedDomain("random")}
               className={cn(
-                "rounded-xl border px-3 py-3 text-sm font-medium transition-all text-center",
+                "shrink-0 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap",
                 selectedDomain === "random"
                   ? "border-indigo-500 bg-indigo-500/15 text-white"
                   : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
@@ -129,7 +132,7 @@ export default function SessionConfigScreen() {
                 key={d.value}
                 onClick={() => setSelectedDomain(d.value)}
                 className={cn(
-                  "rounded-xl border px-3 py-3 text-sm font-medium transition-all text-center",
+                  "shrink-0 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap",
                   selectedDomain === d.value
                     ? "border-indigo-500 bg-indigo-500/15 text-white"
                     : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
@@ -141,42 +144,44 @@ export default function SessionConfigScreen() {
           </div>
         </div>
 
-        {/* Active Settings Summary */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Active Settings</h2>
-            <button 
-              onClick={() => navigate("/settings")}
-              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5"
-            >
-              <span>⚙️</span> Change
-            </button>
+        {/* Active Settings — compact pill strip */}
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center text-[11px] font-semibold text-slate-400 bg-white/5 border border-white/8 px-2.5 py-1 rounded-full">
+              {chunkSize}w chunks
+            </span>
+            <span className={cn(
+              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
+              guideEnabled ? "text-slate-300 bg-white/5 border-white/8" : "text-slate-600 bg-transparent border-white/5"
+            )}>
+              📏 {guideEnabled ? "Guide on" : "Guide off"}
+            </span>
+            <span className={cn(
+              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
+              fadingEnabled ? "text-slate-300 bg-white/5 border-white/8" : "text-slate-600 bg-transparent border-white/5"
+            )}>
+              🌫 {fadingEnabled ? "Fading on" : "Fading off"}
+            </span>
+            <span className={cn(
+              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
+              (prefs?.laap_enabled ?? true)
+                ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
+                : "text-slate-600 bg-transparent border-white/5"
+            )}>
+              {(prefs?.laap_enabled ?? true) ? "⚡ Adaptive" : "— Linear"}
+            </span>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/4 py-4 px-2">
-            <div className="grid grid-cols-3 gap-2 divide-x divide-white/10">
-              <div className="px-3 text-center">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Highlight</p>
-                <p className="text-sm font-semibold text-white">{chunkSize} Words</p>
-              </div>
-              <div className="px-3 text-center">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Guide Line</p>
-                <p className={cn("text-sm font-semibold", guideEnabled ? "text-white" : "text-slate-500")}>
-                  {guideEnabled ? "Enabled" : "Off"}
-                </p>
-              </div>
-              <div className="px-3 text-center">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Text Fading</p>
-                <p className={cn("text-sm font-semibold", fadingEnabled ? "text-white" : "text-slate-500")}>
-                  {fadingEnabled ? "Enabled" : "Off"}
-                </p>
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={() => navigate("/settings")}
+            className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors shrink-0"
+          >
+            ⚙️ Edit
+          </button>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <p>
               {error === "POOL_EXHAUSTED"
                 ? "No more passages available for this domain."
@@ -190,7 +195,7 @@ export default function SessionConfigScreen() {
           </div>
         )}
 
-        {/* Start */}
+        {/* Start — inline, always visible */}
         <Button
           size="lg"
           className="w-full"
@@ -203,3 +208,4 @@ export default function SessionConfigScreen() {
     </div>
   );
 }
+

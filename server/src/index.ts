@@ -11,6 +11,7 @@ import helmet from "helmet";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { logger } from "./lib/logger.js";
 import { startWorkers } from "./worker.js";
+import { verifyRedisConnection } from "./lib/redis.js";
 import { globalRateLimit } from "./middleware/rateLimiter.js";
 
 // Routes
@@ -51,9 +52,19 @@ app.use("/api/admin",        adminRouter);
 app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  logger.info(`[ReadShift] Server listening on http://localhost:${PORT}`);
-  startWorkers();
+async function boot() {
+  // Probe Redis first so isRedisAvailable is set before workers start.
+  await verifyRedisConnection();
+
+  app.listen(PORT, () => {
+    logger.info(`[ReadShift] Server listening on http://localhost:${PORT}`);
+    startWorkers();
+  });
+}
+
+boot().catch((err) => {
+  console.error("[ReadShift] Fatal boot error:", err);
+  process.exit(1);
 });
 
 export default app;

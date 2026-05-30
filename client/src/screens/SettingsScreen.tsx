@@ -76,6 +76,7 @@ export default function SettingsScreen() {
       mcq_timer: draft.mcq_timer ?? 0,
       highlight_intensity: draft.highlight_intensity ?? "moderate",
       auto_center_scroll: draft.auto_center_scroll ?? true,
+      laap_enabled: draft.laap_enabled ?? true,
     });
     setSaving(false);
   }, [draft, preferences, updatePreferences]);
@@ -111,7 +112,7 @@ export default function SettingsScreen() {
   const isDirty = JSON.stringify(draft) !== JSON.stringify(preferences);
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-14 px-4 py-10 pb-20">
+    <div className="min-h-[calc(100vh-3.5rem)] pt-20 px-4 py-10 pb-20">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -171,16 +172,16 @@ export default function SettingsScreen() {
           <div className="rounded-2xl border border-white/10 bg-white/4 divide-y divide-white/5">
             {/* Column Width */}
             <div 
-              className="relative flex items-center justify-between px-5 py-4 transition-colors hover:bg-white/5 first:rounded-t-2xl"
+              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 transition-colors hover:bg-white/5 first:rounded-t-2xl gap-3 sm:gap-0"
               onMouseEnter={() => allowHover && setHoveredPreview("widthRow")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "widthRow" && <WidthRowPreview />}
               
-              <div className="space-y-1">
+              <div className="space-y-1 self-start">
                 <p className="text-sm font-medium text-white cursor-help">Line Width</p>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
                 {COL_WIDTHS.map((cw) => (
                   <button
                     key={cw.value}
@@ -200,13 +201,13 @@ export default function SettingsScreen() {
 
             {/* Font Size */}
             <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 gap-3 sm:gap-0"
               onMouseEnter={() => allowHover && setHoveredPreview("fontRow")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "fontRow" && <FontRowPreview />}
-              <p className="text-sm font-medium text-white cursor-help">Font Size</p>
-              <div className="flex gap-2">
+              <p className="text-sm font-medium text-white cursor-help self-start">Font Size</p>
+              <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:gap-2 sm:w-auto">
                 {FONT_SIZES.map((fs) => (
                   <button
                     key={fs.value}
@@ -226,16 +227,16 @@ export default function SettingsScreen() {
 
             {/* Chunk size */}
             <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 gap-3 sm:gap-0"
               onMouseEnter={() => allowHover && setHoveredPreview("chunkRow")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "chunkRow" && <ChunkRowPreview />}
-              <div>
+              <div className="self-start">
                 <p className="text-sm font-medium text-white cursor-help">Highlight Chunk</p>
                 <p className="text-[10px] text-slate-500">Words highlighted per tick</p>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:gap-2 sm:w-auto">
                 {CHUNK_SIZES.map((cs) => (
                   <button
                     key={cs.value}
@@ -323,19 +324,44 @@ export default function SettingsScreen() {
               </button>
             </div>
 
-            {/* Highlight Intensity Row */}
+            {/* LAAP (Linguistic-Aware Adaptive Pacing) toggle row */}
             <div 
               className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("laap")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "laap" && <LaapPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Adaptive Pacing (LAAP)</p>
+                <p className="text-[10px] text-slate-500">Varying speed by word complexity for a smooth, natural pacing flow</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ laap_enabled: !(draft.laap_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.laap_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.laap_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* Highlight Intensity Row */}
+            <div 
+              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 gap-3 sm:gap-0"
               onMouseEnter={() => allowHover && setHoveredPreview("highlightIntensity")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "highlightIntensity" && <HighlightIntensityPreview />}
               
-              <div>
+              <div className="self-start">
                 <p className="text-sm font-medium text-white cursor-help">Highlight Focus</p>
                 <p className="text-[10px] text-slate-500">Visual weight of the focus highlight</p>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:gap-2 sm:w-auto">
                 {(["subtle", "moderate", "intense"] as const).map((level) => (
                   <button
                     key={level}
@@ -740,6 +766,51 @@ function AutoCenterPreview({ enabled }: { enabled: boolean }) {
           ? "Locks reading focus strictly to the center of the screen." 
           : "Allows free viewport scrolling. Text only scrolls when hitting borders."}
       </p>
+    </motion.div>
+  );
+}
+
+function LaapPreview() {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+    >
+      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">Adaptive Pacing (LAAP)</div>
+      <div className="space-y-3">
+        {/* Simple vs Complex chunk comparison */}
+        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5">
+          <div className="flex justify-between items-center text-[10px] text-indigo-400 font-semibold">
+            <span>"and it is"</span>
+            <span>Fast (90ms)</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+            <motion.div 
+              animate={{ width: ["0%", "100%", "0%"] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+            />
+          </div>
+        </div>
+        
+        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5">
+          <div className="flex justify-between items-center text-[10px] text-indigo-400 font-semibold">
+            <span>"methodological shift"</span>
+            <span>Slow (240ms)</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+            <motion.div 
+              animate={{ width: ["0%", "100%", "0%"] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+              className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="text-[9px] text-slate-500 text-center mt-3 leading-relaxed">
+        Pacing is automatically distributed by syllable and word weight, matching your exact target WPM.
+      </div>
     </motion.div>
   );
 }

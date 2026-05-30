@@ -17,8 +17,16 @@ export default function MCQScreen() {
   const [currentQ, setCurrentQ] = useState(0);
   const [timeLeft, setTimeLeft] = useState(45);
   const [showPassage, setShowPassage] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<"passage" | "question">("passage");
   const questionStartRef = useRef<number>(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Automatically reset to passage tab when toggling passage view on mobile
+  useEffect(() => {
+    if (showPassage) {
+      setActiveMobileTab("passage");
+    }
+  }, [showPassage]);
 
   useEffect(() => {
     if (!preferences) fetchProfile();
@@ -58,6 +66,8 @@ export default function MCQScreen() {
         setCurrentQ((q) => q + 1);
         setTimeLeft(mcqTimerSeconds);
         questionStartRef.current = Date.now();
+        // Reset to question tab on next question for better UX
+        setActiveMobileTab("question");
       } else {
         await submitSession();
       }
@@ -131,6 +141,34 @@ export default function MCQScreen() {
           </button>
         </div>
 
+        {/* Mobile Segmented Tab Control when showPassage is active */}
+        {showPassage && (
+          <div className="flex md:hidden p-1 bg-slate-900 border border-white/5 rounded-xl mb-6">
+            <button
+              onClick={() => setActiveMobileTab("passage")}
+              className={cn(
+                "flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+                activeMobileTab === "passage"
+                  ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/10"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              📄 Read Passage
+            </button>
+            <button
+              onClick={() => setActiveMobileTab("question")}
+              className={cn(
+                "flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+                activeMobileTab === "question"
+                  ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/10"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              ❓ Answer Question
+            </button>
+          </div>
+        )}
+
         {/* Outer container grid */}
         <div className={cn("grid gap-8 items-start", showPassage ? "grid-cols-1 md:grid-cols-[7fr_3fr]" : "grid-cols-1")}>
           
@@ -140,7 +178,10 @@ export default function MCQScreen() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="w-full bg-[#0d1527]/50 border border-white/8 rounded-2xl p-6 sm:p-8 space-y-4 max-h-[65vh] overflow-y-auto shadow-2xl custom-scrollbar"
+              className={cn(
+                "w-full bg-[#0d1527]/50 border border-white/8 rounded-2xl p-6 sm:p-8 space-y-4 max-h-[65vh] overflow-y-auto shadow-2xl custom-scrollbar",
+                activeMobileTab === "passage" ? "block" : "hidden md:block"
+              )}
             >
               <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 border-b border-indigo-500/10 pb-2">
                 Passage Content
@@ -157,7 +198,7 @@ export default function MCQScreen() {
           )}
 
           {/* Right Column: MCQ Card & navigation */}
-          <div className="space-y-6">
+          <div className={cn("space-y-6", showPassage && (activeMobileTab === "question" ? "block" : "hidden md:block"))}>
             
             {/* Timer Progress Bar */}
             {mcqTimerSeconds > 0 && (

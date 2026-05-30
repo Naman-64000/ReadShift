@@ -97,7 +97,7 @@ export default function AdminScreen() {
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-16 px-4 pb-16">
+    <div className="min-h-[calc(100vh-3.5rem)] pt-20 px-4 pb-16">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>

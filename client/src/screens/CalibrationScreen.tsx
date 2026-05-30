@@ -60,7 +60,7 @@ export default function CalibrationScreen() {
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center px-4 py-12">
+    <div className="min-h-[calc(100vh-3.5rem)] pt-20 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-2xl">
         {phase === "intro" && (
           <motion.div

@@ -36,7 +36,7 @@ export default function ResultsScreen() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-14 px-4 py-12">
+    <div className="min-h-[calc(100vh-3.5rem)] pt-20 px-4 py-12">
       <div className="max-w-2xl mx-auto space-y-10">
         {/* Level up celebration */}
         {level_up && (
@@ -55,7 +55,7 @@ export default function ResultsScreen() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-3 gap-4"
+          className="grid grid-cols-3 gap-2 sm:gap-4"
         >
           {[
             { label: "Speed",        value: `${actual_wpm}`, unit: "WPM" },

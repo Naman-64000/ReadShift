@@ -15,6 +15,7 @@ export interface SessionConfig {
   fading_enabled: boolean;
   guide_enabled: boolean;
   domain?: string;
+  level?: number;
 }
 
 export interface PendingResponse {
@@ -92,8 +93,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { passage, passageDomain } = get();
     const requestedDomain = config.domain ?? null;
 
-    // Reuse pre-fetched passage only when it matches the exact requested domain context.
-    if (passage && passageDomain === requestedDomain) {
+    // Reuse pre-fetched passage only when it matches the exact requested domain context and no custom level was requested
+    if (passage && passageDomain === requestedDomain && !config.level) {
       set({ 
         phase: "reading", 
         config, 
@@ -108,7 +109,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Otherwise fetch one now
     set({ phase: "config", config, error: null, passage: null, responses: [], result: null });
     try {
-      const params = config.domain ? { domain: config.domain } : {};
+      const params: { domain?: string; level?: number } = {};
+      if (config.domain) params.domain = config.domain;
+      if (config.level) params.level = config.level;
+      
       const res = await apiClient.post<{ data: StartSessionResponse }>("/sessions/start", params);
       const normalized = normalizePassage(res.data.data);
       set({

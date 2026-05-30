@@ -19,6 +19,32 @@ export interface DomainAccuracy {
   sessions: number;
 }
 
+export interface WpmSlowdown {
+  domain: Domain;
+  avg_wpm: number;
+  slowdown_pct: number;
+}
+
+export interface WpmComprehensionCorrelation {
+  wpm_range: string;
+  avg_accuracy: number;
+  session_count: number;
+}
+
+export interface HeatmapCell {
+  domain: Domain;
+  level: number;
+  avg_accuracy: number;
+  avg_wpm: number;
+  session_count: number;
+}
+
+export interface SweetSpot {
+  wpm_range: string;
+  avg_accuracy: number;
+  description: string;
+}
+
 export interface DashboardSummary {
   current_wpm: number;
   baseline_wpm: number;
@@ -31,4 +57,8 @@ export interface DashboardSummary {
   weak_domains: Domain[];
   recommended_wpm: number;
   recommended_domain: Domain | null;
+  wpm_slowdown: WpmSlowdown[];
+  wpm_comprehension_correlation: WpmComprehensionCorrelation[];
+  heatmap_data: HeatmapCell[];
+  sweet_spot: SweetSpot | null;
 }

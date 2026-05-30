@@ -20,6 +20,7 @@ import DashboardScreen from "@/screens/DashboardScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import AdminScreen from "@/screens/AdminScreen";
 import AuthScreen from "@/screens/AuthScreen";
+import MetronomeDrillScreen from "@/screens/MetronomeDrillScreen";
 
 export default function App() {
   const isFullscreen = useUIStore((s) => s.isFullscreen);
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/session/results" element={session ? <ResultsScreen /> : <Navigate to="/auth" />} />
         <Route path="/settings"        element={session ? <SettingsScreen /> : <Navigate to="/auth" />} />
         <Route path="/admin"           element={session ? <AdminScreen /> : <Navigate to="/auth" />} />
+        <Route path="/drills/metronome" element={session ? <MetronomeDrillScreen /> : <Navigate to="/auth" />} />
 
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

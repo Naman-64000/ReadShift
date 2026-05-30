@@ -29,6 +29,7 @@ export interface UserPreferences {
   mcq_timer: number;
   highlight_intensity: "subtle" | "moderate" | "intense";
   auto_center_scroll: boolean;
+  laap_enabled: boolean;
 }
 
 /** Combined user + prefs shape returned by GET /api/users/me */

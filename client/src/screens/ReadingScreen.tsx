@@ -2,7 +2,7 @@
  * client/src/screens/ReadingScreen.tsx
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSession } from "@/hooks/useSession";
 import { useReadingTimer } from "@/hooks/useReadingTimer";
@@ -11,20 +11,108 @@ import ProgressBar from "@/components/session/ProgressBar";
 import { motion } from "framer-motion";
 import { useUIStore, useUserStore } from "@/store";
 import Button from "@/components/shared/Button";
-import { msToTime, readingProgress, calculateActualWpm } from "@/lib/utils";
+import { msToTime, readingProgress, calculateActualWpm, parseParagraphsForSkimming } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+
+const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
+  narrow: "max-w-[38rem]",
+  medium: "max-w-[52rem]",
+  wide:   "max-w-[65rem]",
+};
 
 export default function ReadingScreen() {
   const navigate = useNavigate();
-  const { passage, config, chunks, paragraphStartChunkIndices, intervalMs, totalChunks, markReadingDone, resetSession, phase } = useSession();
+  const { passage, config, chunks, intervalMs, customChunkIntervalsMs, extraDelayMsByNextChunk, isLaapActive, totalChunks, markReadingDone, resetSession, phase } = useSession();
   const { setFullscreen } = useUIStore();
   const { preferences, fetchProfile } = useUserStore();
   const [isReady, setIsReady] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
+
+  // 🧠 15-Second Structural Skimming Module States & Lifecycle
+  const [isSkimming, setIsSkimming] = useState(false);
+  const [skimmingTimeLeft, setSkimmingTimeLeft] = useState(15);
+  const skimmingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isSkimmingRef = useRef(false);
+  const isSkimmingPausedRef = useRef(false);
+
+  const skimmingParagraphs = useMemo(() => {
+    if (!passage) return [];
+    return parseParagraphsForSkimming(passage.passage.body);
+  }, [passage]);
+
+  useEffect(() => {
+    isSkimmingRef.current = isSkimming;
+  }, [isSkimming]);
+
+  const handleStartSkimming = () => {
+    setIsSkimming(true);
+    setIsReady(true);
+    setSkimmingTimeLeft(15);
+    isSkimmingPausedRef.current = false;
+    
+    if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
+    
+    skimmingTimerRef.current = setInterval(() => {
+      if (isSkimmingPausedRef.current) return;
+
+      setSkimmingTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
+          setIsSkimming(false);
+          if (!isRunning && totalChunks > 0) start();
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleStopSkimmingAndStart = () => {
+    if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
+    setIsSkimming(false);
+    if (!isRunning && totalChunks > 0) start();
+  };
+
   useEffect(() => {
     if (!preferences) fetchProfile();
   }, [preferences, fetchProfile]);
+
+  // Clean up skimming timer on unmount and handle visibility/blur
+  useEffect(() => {
+    const handlePauseSkimming = () => {
+      if (isSkimmingRef.current && !isSkimmingPausedRef.current) {
+        isSkimmingPausedRef.current = true;
+      }
+    };
+
+    const handleResumeSkimming = () => {
+      if (isSkimmingRef.current && isSkimmingPausedRef.current) {
+        isSkimmingPausedRef.current = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        handlePauseSkimming();
+      } else {
+        handleResumeSkimming();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handlePauseSkimming);
+    window.addEventListener("focus", handleResumeSkimming);
+
+    return () => {
+      if (skimmingTimerRef.current) {
+        clearInterval(skimmingTimerRef.current);
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handlePauseSkimming);
+      window.removeEventListener("focus", handleResumeSkimming);
+    };
+  }, []);
 
   // Redirect if no active session
   useEffect(() => {
@@ -48,7 +136,8 @@ export default function ReadingScreen() {
     useReadingTimer({
       totalChunks,
       intervalMs,
-      extraDelayMsByNextChunk: Object.fromEntries(paragraphStartChunkIndices.map((idx) => [idx, 500])),
+      customChunkIntervalsMs,
+      extraDelayMsByNextChunk,
       onComplete: handleComplete,
     });
 
@@ -88,7 +177,7 @@ export default function ReadingScreen() {
             </button>
           </div>
           
-          <div className="flex-1 flex flex-col items-center pt-20 pb-24 px-4 overflow-y-auto max-w-2xl mx-auto w-full">
+          <div className={cn("flex-1 flex flex-col items-center pt-20 pb-24 px-4 overflow-y-auto mx-auto w-full", colWidthClass[preferences?.col_width ?? "medium"])}>
             <motion.div 
               initial={{ opacity: 0, y: 15 }} 
               animate={{ opacity: 1, y: 0 }}
@@ -115,87 +204,170 @@ export default function ReadingScreen() {
         </>
       ) : (
         <>
-          {/* Top bar */}
-          <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
-            <ProgressBar percent={progress} />
-            <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
-              <button
-                onClick={handleBackToConfig}
-                className="text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors bg-white/8 text-slate-300 hover:text-white"
-              >
-                ← Back
-              </button>
-              <span className="text-xs text-slate-500 tabular-nums">{msToTime(elapsedMs)}</span>
-              <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">
-                {config.target_wpm} WPM
-              </span>
-              <button
-                onClick={isPaused ? resume : pause}
-                disabled={!isReady}
-                className={cn(
-                  "text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors whitespace-nowrap",
-                  isPaused
-                    ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
-                    : "bg-white/8 text-slate-400 hover:text-white",
-                  !isReady && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                {isPaused ? "▶ Resume" : "⏸ Pause"}
-              </button>
-            </div>
-          </div>
-
-          {/* Reading area */}
-          <div className="flex-1 flex items-start justify-center pt-20 sm:pt-24 pb-16 px-3 sm:px-6 overflow-y-auto no-scrollbar">
-            <ReadingEngine
-              chunks={chunks}
-              currentChunkIndex={currentChunkIndex}
-              fadingEnabled={config.fading_enabled}
-              guideEnabled={config.guide_enabled}
-              colWidth={config.fading_enabled ? "medium" : "medium"}
-              fontSizePx={preferences?.font_size_px ?? 18}
-              highlightIntensity={preferences?.highlight_intensity ?? "moderate"}
-              autoCenterScroll={preferences?.auto_center_scroll ?? true}
-              isPaused={isPaused || !isReady}
-            />
-          </div>
-
-          {/* Done Button — only appears after 50% progress */}
-          {progress >= 50 && !isRunning && (
-            <div className="fixed bottom-10 inset-x-0 flex justify-center z-40">
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <Button size="lg" className="shadow-2xl shadow-indigo-500/20" onClick={() => handleComplete(elapsedMs)}>
-                  I'm Done Reading →
-                </Button>
-              </motion.div>
-            </div>
-          )}
-
-          {/* Paused overlay */}
-          {!isReady && (
-            <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="text-center space-y-4 px-4">
-                <div className="text-4xl">📖</div>
-                <p className="text-white font-semibold">Ready to Begin?</p>
-                <p className="text-sm text-slate-400">Click when you are ready and the timer will start.</p>
-                <div className="flex items-center justify-center gap-3">
-                  <Button variant="ghost" onClick={handleBackToConfig}>Back</Button>
-                  <Button onClick={handleBegin}>Start Reading</Button>
+          {isSkimming ? (
+            <>
+              {/* Skimming Top Bar */}
+              <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
+                <div className="w-full h-1 bg-white/5 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: "100%" }}
+                    animate={{ width: `${(skimmingTimeLeft / 15) * 100}%` }}
+                    transition={{ duration: 1, ease: "linear" }}
+                    className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                  />
+                </div>
+                <div className="flex items-center justify-between px-4 sm:px-6 h-11 gap-2">
+                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                    🧠 Structural Skimming (Cognitive Priming)
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-300 bg-white/5 border border-white/8 px-2 py-0.5 rounded">
+                    {skimmingTimeLeft}s
+                  </span>
                 </div>
               </div>
-            </div>
-          )}
-          {isReady && isPaused && (
-            <div
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50"
-              onClick={resume}
-            >
-              <div className="text-center space-y-3">
-                <div className="text-4xl">⏸</div>
-                <p className="text-white font-semibold">Paused</p>
-                <p className="text-sm text-slate-400">Click anywhere to resume</p>
+
+              {/* Skimming Reading area */}
+              <div className={cn("flex-1 flex flex-col items-start pt-20 pb-28 px-4 overflow-y-auto mx-auto w-full no-scrollbar", colWidthClass[preferences?.col_width ?? "medium"])}>
+                <div className="text-center w-full mb-6 space-y-1">
+                  <p className="text-xs text-slate-500 font-medium">
+                    Focus strictly on the highlighted topic sentences below to prime your mental context schema.
+                  </p>
+                </div>
+                
+                <div className="w-full space-y-6">
+                  {skimmingParagraphs.map((p, idx) => (
+                    <div key={idx} className="relative pl-4 border-l-2 border-indigo-500/20 py-0.5">
+                      <span 
+                        className="text-white font-medium leading-relaxed font-serif transition-colors duration-300"
+                        style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
+                      >
+                        {p.firstSentence}
+                      </span>
+                      {p.remainingText && (
+                        <span 
+                          className="text-slate-700 opacity-25 font-normal leading-relaxed font-serif ml-1 select-none"
+                          style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
+                        >
+                          {" "}{p.remainingText}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              {/* Skimming bottom button */}
+              <div className="fixed bottom-8 inset-x-0 flex justify-center z-40">
+                <Button 
+                  size="lg" 
+                  className="shadow-2xl shadow-indigo-500/20 font-bold" 
+                  onClick={handleStopSkimmingAndStart}
+                >
+                  Start Paced Reading Now →
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Top bar */}
+              <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
+                <ProgressBar percent={progress} />
+                <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
+                  <button
+                    onClick={handleBackToConfig}
+                    className="text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors bg-white/8 text-slate-300 hover:text-white"
+                  >
+                    ← Back
+                  </button>
+                  <span className="text-xs text-slate-500 tabular-nums">{msToTime(elapsedMs)}</span>
+                  <div className="flex items-center gap-2">
+                    {isLaapActive && (
+                      <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                        <span className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+                        ⚡ Adaptive
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">
+                      {config.target_wpm} WPM
+                    </span>
+                  </div>
+                  <button
+                    onClick={isPaused ? resume : pause}
+                    disabled={!isReady}
+                    className={cn(
+                      "text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors whitespace-nowrap",
+                      isPaused
+                        ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
+                        : "bg-white/8 text-slate-400 hover:text-white",
+                      !isReady && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    {isPaused ? "▶ Resume" : "⏸ Pause"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Reading area */}
+              <div className="flex-1 flex items-start justify-center pt-20 sm:pt-24 pb-16 px-3 sm:px-6 overflow-y-auto no-scrollbar">
+                <ReadingEngine
+                  chunks={chunks}
+                  currentChunkIndex={currentChunkIndex}
+                  fadingEnabled={config.fading_enabled}
+                  guideEnabled={config.guide_enabled}
+                  colWidth={config.fading_enabled ? "medium" : "medium"}
+                  fontSizePx={preferences?.font_size_px ?? 18}
+                  highlightIntensity={preferences?.highlight_intensity ?? "moderate"}
+                  autoCenterScroll={preferences?.auto_center_scroll ?? true}
+                  isPaused={isPaused || !isReady}
+                />
+              </div>
+
+              {/* Done Button — only appears after 50% progress */}
+              {progress >= 50 && !isRunning && (
+                <div className="fixed bottom-10 inset-x-0 flex justify-center z-40">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <Button size="lg" className="shadow-2xl shadow-indigo-500/20" onClick={() => handleComplete(elapsedMs)}>
+                      I'm Done Reading →
+                    </Button>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Paused overlay */}
+              {!isReady && (
+                <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="text-center space-y-4 px-4 max-w-md">
+                    <div className="text-4xl">📖</div>
+                    <p className="text-white font-semibold">Ready to Begin?</p>
+                    <p className="text-sm text-slate-400">Click when you are ready and the timer will start.</p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full mt-2">
+                      <Button variant="ghost" onClick={handleBackToConfig} className="w-full sm:w-auto">Back</Button>
+                      <Button 
+                        variant="secondary" 
+                        onClick={handleStartSkimming} 
+                        className="w-full sm:flex-1 font-bold border border-indigo-500/20 text-indigo-400 bg-indigo-500/5 hover:bg-indigo-500/10 whitespace-nowrap"
+                      >
+                        🧠 Skim First (15s)
+                      </Button>
+                      <Button onClick={handleBegin} className="w-full sm:flex-1">Start Reading</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {isReady && isPaused && (
+                <div
+                  className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50"
+                  onClick={resume}
+                >
+                  <div className="text-center space-y-3">
+                    <div className="text-4xl">⏸</div>
+                    <p className="text-white font-semibold">Paused</p>
+                    <p className="text-sm text-slate-400">Click anywhere to resume</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

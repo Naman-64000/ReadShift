@@ -4,6 +4,8 @@
 
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../types/index.js";
+import crypto from "crypto";
+import { staticVault } from "../data/staticVault.js";
 
 function weightedRandomPick<T>(items: T[], getWeight: (item: T) => number): T | null {
   if (!items.length) return null;
@@ -100,39 +102,144 @@ export const sessionService = {
       });
     }
 
-    if (!candidates.length) {
-      throw new AppError("POOL_EXHAUSTED", `No level ${targetLevel} passages available for this selection`, 404);
+    let passage: any = null;
+
+    if (candidates.length > 0) {
+      const recentSessions = await prisma.session.findMany({
+        where: { user_id: userId },
+        orderBy: { completed_at: "desc" },
+        take: 5,
+        select: { passage_id: true },
+      });
+      const recentPassageIds = recentSessions.map((s) => s.passage_id);
+
+      const recentTopicKeys = new Set(
+        candidates
+          .filter((p) => recentPassageIds.includes(p.id))
+          .map((p) => p.topic_key)
+          .filter((k): k is string => Boolean(k))
+      );
+
+      const newestTime = candidates[0]?.created_at.getTime() ?? Date.now();
+      const oldestTime = candidates[candidates.length - 1]?.created_at.getTime() ?? newestTime;
+      const ageRange = Math.max(1, newestTime - oldestTime);
+
+      passage = weightedRandomPick(candidates, (candidate) => {
+        const freshness = 0.7 + ((candidate.created_at.getTime() - oldestTime) / ageRange) * 0.6;
+        const diversityPenalty = candidate.topic_key && recentTopicKeys.has(candidate.topic_key) ? 0.35 : 1;
+        return freshness * diversityPenalty;
+      });
     }
 
-    const recentSessions = await prisma.session.findMany({
-      where: { user_id: userId },
-      orderBy: { completed_at: "desc" },
-      take: 5,
-      select: { passage_id: true },
+    // ── First Failover: Try the Static local Passage Vault ──
+    if (!passage) {
+      console.log(`[pickPassage] Unseen active DB pool exhausted. Triggering Static Vault Fallback...`);
+      
+      let vaultCandidates = staticVault.filter((p) => p.level === targetLevel && p.domain === chosenDomain);
+      if (!vaultCandidates.length) {
+        vaultCandidates = staticVault.filter((p) => p.level === targetLevel);
+      }
+
+      for (const vp of vaultCandidates) {
+        const hash = crypto.createHash("sha256").update(vp.body).digest("hex");
+        
+        let dbPassage = await prisma.passage.findUnique({
+          where: { hash },
+          include: {
+            questions: {
+              select: { id: true, passage_id: true, type: true, stem: true, options: true },
+            },
+          },
+        });
+
+        // Dynamic, atomic seed of static vault passage if not already in DB
+        if (!dbPassage) {
+          console.log(`[pickPassage] Dynamic seeding static vault passage: "${vp.topic_key}"`);
+          dbPassage = await prisma.passage.create({
+            data: {
+              body: vp.body,
+              word_count: vp.body.trim().split(/\s+/).filter(Boolean).length,
+              domain: vp.domain as any,
+              level: vp.level,
+              generated_by: "static_vault",
+              source: "static_vault",
+              status: "ready",
+              hash,
+              questions: {
+                create: vp.questions.map((q) => ({
+                  type: q.type,
+                  stem: q.stem,
+                  options: q.options,
+                  correct_index: q.correct_index,
+                })),
+              },
+            },
+            include: {
+              questions: {
+                select: { id: true, passage_id: true, type: true, stem: true, options: true },
+              },
+            },
+          });
+        }
+
+        if (!seenIds.includes(dbPassage.id)) {
+          passage = dbPassage;
+          break;
+        }
+      }
+    }
+
+    // ── Second Failover: Active Recycling of oldest seen passages ──
+    if (!passage) {
+      console.log(`[pickPassage] All pools exhausted. Triggering Active Recycling Fallback...`);
+      
+      const oldestSeen = await prisma.userPassageSeen.findFirst({
+        where: {
+          user_id: userId,
+          passage: {
+            level: targetLevel,
+            flagged: false,
+            status: "ready",
+          },
+        },
+        orderBy: { seen_at: "asc" }, // oldest seen first
+        select: {
+          passage_id: true,
+        },
+      });
+
+      if (oldestSeen) {
+        passage = await prisma.passage.findUnique({
+          where: { id: oldestSeen.passage_id },
+          include: {
+            questions: {
+              select: { id: true, passage_id: true, type: true, stem: true, options: true },
+            },
+          },
+        });
+
+        if (passage) {
+          console.log(`[pickPassage] Recycling passage ID: ${passage.id}, Topic: ${passage.topic_key}`);
+          await prisma.userPassageSeen.update({
+            where: { user_id_passage_id: { user_id: userId, passage_id: passage.id } },
+            data: { seen_at: new Date() },
+          });
+        }
+      }
+    }
+
+    if (!passage) {
+      throw new AppError("POOL_EXHAUSTED", `No level ${targetLevel} passages available in any pool`, 404);
+    }
+
+    // Record the view atomically (only for newly assigned, non-recycled passages)
+    const alreadySeen = await prisma.userPassageSeen.findUnique({
+      where: { user_id_passage_id: { user_id: userId, passage_id: passage.id } },
     });
-    const recentPassageIds = recentSessions.map((s) => s.passage_id);
+    if (!alreadySeen) {
+      await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: passage.id } });
+    }
 
-    const recentTopicKeys = new Set(
-      candidates
-        .filter((p) => recentPassageIds.includes(p.id))
-        .map((p) => p.topic_key)
-        .filter((k): k is string => Boolean(k))
-    );
-
-    const newestTime = candidates[0]?.created_at.getTime() ?? Date.now();
-    const oldestTime = candidates[candidates.length - 1]?.created_at.getTime() ?? newestTime;
-    const ageRange = Math.max(1, newestTime - oldestTime);
-
-    const passage = weightedRandomPick(candidates, (candidate) => {
-      const freshness = 0.7 + ((candidate.created_at.getTime() - oldestTime) / ageRange) * 0.6;
-      const diversityPenalty = candidate.topic_key && recentTopicKeys.has(candidate.topic_key) ? 0.35 : 1;
-      return freshness * diversityPenalty;
-    });
-
-    if (!passage) throw new AppError("POOL_EXHAUSTED", `No level ${targetLevel} passages available for this selection`, 404);
-
-    // Record the view atomically
-    await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: passage.id } });
     await prisma.passageAssignment.create({
       data: {
         user_id: userId,

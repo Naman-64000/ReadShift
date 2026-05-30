@@ -85,6 +85,7 @@ model UserPreferences {
   mcq_timer      Int      @default(0)         // 0 = no time, otherwise 15-180 seconds
   highlight_intensity String @default("moderate") // subtle | moderate | intense
   auto_center_scroll Boolean  @default(true)      // auto-center active line
+  laap_enabled   Boolean  @default(true)      @map("laap_enabled") // linguistic-aware adaptive pacing
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)

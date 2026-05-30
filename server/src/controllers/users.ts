@@ -17,6 +17,7 @@ const PrefsSchema = z.object({
   mcq_timer:      z.number().int().min(0).max(180).optional(),
   highlight_intensity: z.enum(["subtle", "moderate", "intense"]).optional(),
   auto_center_scroll:  z.boolean().optional(),
+  laap_enabled:        z.boolean().optional(),
 });
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {
