@@ -15,9 +15,13 @@ const PrefsSchema = z.object({
   font_size_px:   z.union([z.literal(16), z.literal(18), z.literal(21)]).optional(),
   domains:        z.array(z.enum(["business", "science", "history", "abstract", "social"])).min(1).optional(),
   mcq_timer:      z.number().int().min(0).max(180).optional(),
-  highlight_intensity: z.enum(["subtle", "moderate", "intense"]).optional(),
+  highlight_intensity: z.enum(["none", "subtle", "moderate", "intense"]).optional(),
   auto_center_scroll:  z.boolean().optional(),
   laap_enabled:        z.boolean().optional(),
+  skim_enabled:        z.boolean().optional(),
+  mcqs_enabled:        z.boolean().optional(),
+  progress_bar_enabled: z.boolean().optional(),
+  timer_enabled:       z.boolean().optional(),
 });
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {
@@ -65,5 +69,18 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
   try {
     await prisma.user.delete({ where: { id: req.auth!.userId } });
     res.status(204).send();
+  } catch (err) { next(err); }
+}
+
+export async function checkEmailExists(req: Request, res: Response, next: NextFunction) {
+  try {
+    const email = req.query.email;
+    if (typeof email !== "string" || !email) {
+      throw new AppError("VALIDATION_ERROR", "Email parameter is required", 400);
+    }
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+    });
+    res.json({ success: true, data: { exists: !!user } });
   } catch (err) { next(err); }
 }

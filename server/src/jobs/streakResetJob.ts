@@ -29,15 +29,15 @@ import { logger } from "../lib/logger.js";
 export async function runStreakResetCheck(): Promise<void> {
   logger.info("Running daily streak reset check...");
 
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
   try {
-    // Find all users who haven't had a session in over 24 hours
+    // Find all users who haven't had a session in over 48 hours
     // and whose streak is currently > 0
     const usersToReset = await prisma.user.findMany({
       where: {
         last_session_at: {
-          lt: twentyFourHoursAgo,
+          lt: fortyEightHoursAgo,
         },
         streak_days: {
           gt: 0,

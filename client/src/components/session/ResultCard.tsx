@@ -8,7 +8,7 @@ import { QUESTION_TYPE_LABELS } from "@/lib/constants";
 import type { Question } from "@/types";
 
 interface ResultCardProps {
-  question: Question & { correct_index: 0 | 1 | 2 | 3 };
+  question: Question & { correct_index: 0 | 1 | 2 | 3; explanations?: string[] };
   selectedIndex: 0 | 1 | 2 | 3;
   timeTakenMs: number;
   index: number;
@@ -49,24 +49,30 @@ export default function ResultCard({ question, selectedIndex, timeTakenMs, index
       <p className="text-sm font-medium text-slate-200 leading-relaxed">{question.stem}</p>
 
       {/* Options */}
-      <div className="space-y-2">
+      <div className="space-y-3.5">
         {question.options.map((opt, idx) => {
           const isSelected = idx === selectedIndex;
           const isCorrectOpt = idx === question.correct_index;
           return (
-            <div
-              key={idx}
-              className={cn(
-                "flex items-start gap-3 rounded-lg px-4 py-2.5 text-xs",
-                isCorrectOpt && "bg-emerald-500/15 text-emerald-300 font-medium",
-                isSelected && !isCorrect && "bg-red-500/15 text-red-300 font-medium",
-                !isSelected && !isCorrectOpt && "text-slate-500"
+            <div key={idx} className="space-y-1.5">
+              <div
+                className={cn(
+                  "flex items-start gap-3 rounded-lg px-4 py-2.5 text-xs transition-colors duration-150",
+                  isCorrectOpt && "bg-emerald-500/15 text-emerald-300 font-medium border border-emerald-500/20",
+                  isSelected && !isCorrect && "bg-red-500/15 text-red-300 font-medium border border-red-500/20",
+                  !isSelected && !isCorrectOpt && "text-slate-400 bg-white/2 border border-transparent"
+                )}
+              >
+                <span className="font-bold shrink-0">{OPTIONS[idx]}.</span>
+                <span>{opt}</span>
+                {isCorrectOpt && <span className="ml-auto shrink-0 text-emerald-400 font-bold">✓</span>}
+                {isSelected && !isCorrect && <span className="ml-auto shrink-0 text-red-400 font-bold">✕</span>}
+              </div>
+              {question.explanations && question.explanations[idx] && (
+                <div className="pl-9 pr-4 text-[11px] leading-relaxed text-slate-400 italic font-normal">
+                  {question.explanations[idx]}
+                </div>
               )}
-            >
-              <span className="font-bold shrink-0">{OPTIONS[idx]}.</span>
-              <span>{opt}</span>
-              {isCorrectOpt && <span className="ml-auto shrink-0">✓</span>}
-              {isSelected && !isCorrect && <span className="ml-auto shrink-0">✕</span>}
             </div>
           );
         })}

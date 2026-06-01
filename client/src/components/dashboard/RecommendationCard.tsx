@@ -11,7 +11,6 @@ interface RecommendationCardProps {
   recommendedWpm: number;
   recommendedDomain: Domain | null;
   currentWpm: number;
-  currentLevel: 1 | 2 | 3 | 4;
 }
 
 export default function RecommendationCard({

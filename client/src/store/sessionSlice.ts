@@ -15,7 +15,6 @@ export interface SessionConfig {
   fading_enabled: boolean;
   guide_enabled: boolean;
   domain?: string;
-  level?: number;
 }
 
 export interface PendingResponse {
@@ -54,12 +53,12 @@ type StartSessionResponse =
       body: string;
       word_count: number;
       domain: string;
-      level: number;
       generated_by: string;
       flagged: boolean;
       created_at: string;
       questions: PassageWithQuestions["questions"];
     };
+
 
 function normalizePassage(data: StartSessionResponse): PassageWithQuestions {
   if ("passage" in data) return data;
@@ -69,7 +68,6 @@ function normalizePassage(data: StartSessionResponse): PassageWithQuestions {
     passage: {
       ...passage,
       domain: passage.domain as PassageWithQuestions["passage"]["domain"],
-      level: passage.level as PassageWithQuestions["passage"]["level"],
     },
     questions,
   };
@@ -93,8 +91,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { passage, passageDomain } = get();
     const requestedDomain = config.domain ?? null;
 
-    // Reuse pre-fetched passage only when it matches the exact requested domain context and no custom level was requested
-    if (passage && passageDomain === requestedDomain && !config.level) {
+    // Reuse pre-fetched passage only when it matches the exact requested domain context
+    if (passage && passageDomain === requestedDomain) {
       set({ 
         phase: "reading", 
         config, 
@@ -109,9 +107,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Otherwise fetch one now
     set({ phase: "config", config, error: null, passage: null, responses: [], result: null });
     try {
-      const params: { domain?: string; level?: number } = {};
+      const params: { domain?: string } = {};
       if (config.domain) params.domain = config.domain;
-      if (config.level) params.level = config.level;
       
       const res = await apiClient.post<{ data: StartSessionResponse }>("/sessions/start", params);
       const normalized = normalizePassage(res.data.data);
@@ -172,6 +169,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         chunk_size: config.chunk_size,
         fading_used: config.fading_enabled,
         guide_used: config.guide_enabled,
+        timezone_offset: new Date().getTimezoneOffset(),
         responses,
       };
       const res = await apiClient.post<{ data: SessionResult }>("/sessions", payload);

@@ -57,3 +57,46 @@ export async function getLatestCalibration(req: Request, res: Response, next: Ne
     });
   } catch (err) { next(err); }
 }
+
+/**
+ * GET /api/calibrations/passage
+ * Returns a random ready passage from the DB to use for calibration reading.
+ * Does NOT mark the passage as seen or create any session — read-only.
+ */
+export async function getCalibrationPassage(_req: Request, res: Response, next: NextFunction) {
+  try {
+    // Fetch a pool of ready passages and pick one randomly
+    const passages = await prisma.passage.findMany({
+      where: {
+        flagged: false,
+        status: "ready",
+      },
+      select: {
+        id: true,
+        body: true,
+        word_count: true,
+        domain: true,
+        topic_key: true,
+        created_at: true,
+      },
+      take: 100,
+      orderBy: { created_at: "desc" },
+    });
+
+    if (!passages.length) {
+      throw new AppError("NOT_FOUND", "No passages available for calibration", 404);
+    }
+
+    // Weighted random pick (fresher passages get slightly higher weight)
+    const weights = passages.map((_, i) => Math.max(0.1, 1 - i * 0.005));
+    const total = weights.reduce((s, w) => s + w, 0);
+    let r = Math.random() * total;
+    let chosen = passages[passages.length - 1];
+    for (let i = 0; i < passages.length; i++) {
+      r -= weights[i];
+      if (r <= 0) { chosen = passages[i]; break; }
+    }
+
+    res.json({ success: true, data: { id: chosen.id, body: chosen.body, word_count: chosen.word_count, domain: chosen.domain, topic_key: chosen.topic_key } });
+  } catch (err) { next(err); }
+}

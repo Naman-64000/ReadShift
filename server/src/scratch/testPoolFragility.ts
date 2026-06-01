@@ -11,7 +11,7 @@ import { sessionService } from "../services/sessionService.js";
 import { staticVault } from "../data/staticVault.js";
 
 async function runTest() {
-  console.log("🧪 Starting Passage Pool Fragility & Fallback Tests...\n");
+  console.log("🧪 Starting Passage Pool Fragility & Fallback Tests (Domain-based)...\n");
 
   const email = `test-fragility-${Date.now()}@readshift.local`;
   
@@ -22,20 +22,19 @@ async function runTest() {
       email,
       clerk_id: `clerk-fragility-${Date.now()}`,
       is_admin: false,
-      level: 2,
     },
   });
 
   try {
-    // 2. Query all existing Level 2 passages in the DB
-    console.log("🔍 Fetching all existing level 2 passages from the database...");
+    // 2. Query all existing passages in the DB
+    console.log("🔍 Fetching all existing passages from the database...");
     const dbPassages = await prisma.passage.findMany({
-      where: { level: 2, status: "ready", flagged: false },
+      where: { status: "ready", flagged: false },
     });
-    console.log(`   Found ${dbPassages.length} level 2 passages in the active pool.`);
+    console.log(`   Found ${dbPassages.length} passages in the active pool.`);
 
-    // 3. Mark ALL existing DB passages at Level 2 as SEEN by this user
-    console.log("📦 Simulating user seeing ALL active DB pool passages at Level 2...");
+    // 3. Mark ALL existing DB passages as SEEN by this user
+    console.log("📦 Simulating user seeing ALL active DB pool passages...");
     await prisma.userPassageSeen.createMany({
       data: dbPassages.map((p) => ({
         user_id: user.id,
@@ -46,31 +45,29 @@ async function runTest() {
 
     // 4. Request a passage. Standard pool is fully exhausted, should trigger Stage 1: Static Vault Fallback
     console.log("\n⚡ Requesting a passage (Expected: Stage 1 Static Vault Fallback)...");
-    const p1 = await sessionService.pickPassage(user.id, "business", 2);
+    const p1 = await sessionService.pickPassage(user.id, "business");
     
     console.log("✅ Success! Stage 1 Fallback triggered.");
     console.log(`   Assigned Passage ID: ${p1.id}`);
     console.log(`   Source: ${p1.source} (Expected: static_vault)`);
     console.log(`   Topic: ${p1.topic_key}`);
     console.log(`   Domain: ${p1.domain}`);
-    console.log(`   Level: ${p1.level}`);
     console.log(`   Questions Count: ${p1.questions.length}`);
 
     if (p1.source !== "static_vault") {
       throw new Error(`Test failed: Expected source to be 'static_vault', got '${p1.source}'`);
     }
 
-    // 5. Query all static vault passages at Level 2
-    const level2VaultPassages = staticVault.filter((p) => p.level === 2);
-    console.log(`\n🔍 Found ${level2VaultPassages.length} static vault passages at Level 2.`);
+    // 5. Query all static vault passages
+    console.log(`\n🔍 Found ${staticVault.length} static vault passages.`);
 
-    // Make sure we have records in DB for all vault passages at Level 2 and mark them as seen
-    console.log("📦 Simulating user seeing ALL static vault passages at Level 2...");
+    // Simulate user seeing all static vault passages
+    console.log("📦 Simulating user seeing ALL static vault passages...");
     
-    // We call pickPassage repeatedly until all level 2 vault passages are exhausted
-    for (let i = 0; i < level2VaultPassages.length; i++) {
+    // We call pickPassage repeatedly until all vault passages are exhausted
+    for (let i = 0; i < staticVault.length; i++) {
       try {
-        const pVault = await sessionService.pickPassage(user.id, undefined, 2);
+        const pVault = await sessionService.pickPassage(user.id);
         console.log(`   Seen vault passage: "${pVault.topic_key}" (Source: ${pVault.source})`);
       } catch (err) {
         // Ignored if they have been consumed
@@ -80,7 +77,7 @@ async function runTest() {
     // 6. Request a passage again. Standard pool AND static vault are now completely exhausted!
     // Should trigger Stage 2: Active Recycling (no POOL_EXHAUSTED crash)
     console.log("\n⚡ Requesting a passage (Expected: Stage 2 Active Recycling)...");
-    const pRecycled = await sessionService.pickPassage(user.id, undefined, 2);
+    const pRecycled = await sessionService.pickPassage(user.id);
 
     console.log("✅ Success! Stage 2 Fallback (Active Recycling) triggered.");
     console.log(`   Assigned Recycled Passage ID: ${pRecycled.id}`);

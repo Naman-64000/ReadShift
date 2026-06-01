@@ -77,6 +77,10 @@ export default function SettingsScreen() {
       highlight_intensity: draft.highlight_intensity ?? "moderate",
       auto_center_scroll: draft.auto_center_scroll ?? true,
       laap_enabled: draft.laap_enabled ?? true,
+      skim_enabled: draft.skim_enabled ?? true,
+      mcqs_enabled: draft.mcqs_enabled ?? true,
+      progress_bar_enabled: draft.progress_bar_enabled ?? true,
+      timer_enabled: draft.timer_enabled ?? true,
     });
     setSaving(false);
   }, [draft, preferences, updatePreferences]);
@@ -111,8 +115,30 @@ export default function SettingsScreen() {
   const isDevUser = user.email === "dev@readshift.local";
   const isDirty = JSON.stringify(draft) !== JSON.stringify(preferences);
 
+  const isLearningModeActive =
+    draft?.guide_enabled === true &&
+    draft?.fading_enabled === true &&
+    (draft?.highlight_intensity === "moderate" || draft?.highlight_intensity === "intense") &&
+    draft?.auto_center_scroll === true &&
+    draft?.laap_enabled === true &&
+    draft?.chunk_size === 3 &&
+    (draft?.skim_enabled ?? true) === true &&
+    (draft?.progress_bar_enabled ?? true) === true &&
+    (draft?.timer_enabled ?? true) === true;
+
+  const isTestModeActive =
+    draft?.guide_enabled === false &&
+    draft?.fading_enabled === false &&
+    draft?.highlight_intensity === "none" &&
+    draft?.auto_center_scroll === false &&
+    draft?.laap_enabled === false &&
+    draft?.chunk_size === 4 &&
+    draft?.skim_enabled === false &&
+    draft?.progress_bar_enabled === false &&
+    draft?.timer_enabled === false;
+
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-20 px-4 py-10 pb-20">
+    <div className="min-h-[calc(100vh-4rem)] pt-20 px-4 py-10 pb-20">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -129,6 +155,7 @@ export default function SettingsScreen() {
             {user.email?.[0].toUpperCase()}
           </div>
         </div>
+
 
         {/* Content Preference */}
         <section className="space-y-4">
@@ -163,12 +190,142 @@ export default function SettingsScreen() {
           </div>
         </section>
 
-        {/* Visual Prefs */}
+        {/* Preset Modes */}
         <section className="space-y-4">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-            Reading Display
+            Quick Presets / Modes
           </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => {
+                updateDraft({
+                  guide_enabled: true,
+                  fading_enabled: true,
+                  highlight_intensity: "intense",
+                  auto_center_scroll: true,
+                  laap_enabled: true,
+                  chunk_size: 3,
+                  skim_enabled: true,
+                  progress_bar_enabled: true,
+                  timer_enabled: true,
+                });
+              }}
+              className={cn(
+                "rounded-2xl border p-5 text-left transition-all relative overflow-hidden flex flex-col justify-between min-h-[190px] group",
+                isLearningModeActive
+                  ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)] text-white"
+                  : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+              )}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-sm font-black text-white group-hover:text-emerald-400 transition-colors">
+                    <span>🎓</span> Learn Mode
+                  </div>
+                  {isLearningModeActive && (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium leading-normal">
+                  Optimized for speed-reading acquisition. Focuses your eyes and trains cognitive retention.
+                </p>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-2 border-t border-white/5">
+                  {[
+                    "✓ Skimming Warmup",
+                    "✓ Bold Highlighting",
+                    "✓ Horizontal Line",
+                    "✓ Regression Fading",
+                    "✓ Auto-Center Focus",
+                    "✓ Adaptive Pacing",
+                    "✓ HUD Progress Bar",
+                    "✓ HUD Pacing Timer"
+                  ].map((feat) => (
+                    <span key={feat} className="text-[9px] font-semibold text-emerald-400/90 flex items-center gap-1">
+                      {feat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                updateDraft({
+                  guide_enabled: false,
+                  fading_enabled: false,
+                  highlight_intensity: "none",
+                  auto_center_scroll: false,
+                  laap_enabled: false,
+                  chunk_size: 4,
+                  skim_enabled: false,
+                  progress_bar_enabled: false,
+                  timer_enabled: false,
+                });
+              }}
+              className={cn(
+                "rounded-2xl border p-5 text-left transition-all relative overflow-hidden flex flex-col justify-between min-h-[190px] group",
+                isTestModeActive
+                  ? "border-indigo-500 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.15)] text-white"
+                  : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+              )}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-sm font-black text-white group-hover:text-indigo-400 transition-colors">
+                    <span>⏱️</span> Test Mode
+                  </div>
+                  {isTestModeActive && (
+                    <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/15 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium leading-normal">
+                  Simulates strict exam conditions. Disables visual scaffolding for raw comprehension measurement.
+                </p>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-2 border-t border-white/5">
+                  {[
+                    "✗ No Skimming",
+                    "✗ No Word Boldness",
+                    "✗ No Pacing Guide Line",
+                    "✗ No Text Fading",
+                    "✗ Normal Manual Scroll",
+                    "✗ No Speed Assists",
+                    "✗ No HUD Progress Bar",
+                    "✗ No HUD Pacing Timer"
+                  ].map((feat) => (
+                    <span key={feat} className="text-[9px] font-semibold text-slate-400 flex items-center gap-1">
+                      {feat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        {/* Visual Prefs */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              Reading Display
+            </h2>
+            {isDirty && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={handleSave}
+                disabled={saving}
+                className="text-xs font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:text-white px-3.5 py-1.5 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/5 cursor-pointer"
+              >
+                {saving ? "Saving…" : "💾 Save Changes"}
+              </motion.button>
+            )}
+          </div>
           <div className="rounded-2xl border border-white/10 bg-white/4 divide-y divide-white/5">
             {/* Column Width */}
             <div 
@@ -254,74 +411,34 @@ export default function SettingsScreen() {
               </div>
             </div>
 
-            {/* Toggles */}
+            {/* Highlight Intensity Row */}
             <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
-              onMouseEnter={() => allowHover && setHoveredPreview("guide")}
+              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 gap-3 sm:gap-0"
+              onMouseEnter={() => allowHover && setHoveredPreview("highlightIntensity")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
-              {hoveredPreview === "guide" && <PacingGuidePreview />}
-              <div>
-                <p className="text-sm font-medium text-white cursor-help">Pacing Guide Line</p>
+              {hoveredPreview === "highlightIntensity" && <HighlightIntensityPreview />}
+              
+              <div className="self-start">
+                <p className="text-sm font-medium text-white cursor-help">Highlight Focus</p>
+                <p className="text-[10px] text-slate-500">Visual weight of the focus highlight</p>
               </div>
-              <button
-                onClick={() => updateDraft({ guide_enabled: !draft.guide_enabled })}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                  draft.guide_enabled ? "bg-indigo-500" : "bg-white/10"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  draft.guide_enabled ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-
-            <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
-              onMouseEnter={() => allowHover && setHoveredPreview("fading")}
-              onMouseLeave={() => setHoveredPreview(null)}
-            >
-              {hoveredPreview === "fading" && <TextFadingPreview />}
-              <div>
-                <p className="text-sm font-medium text-white cursor-help">1.5s Text Fading</p>
+              <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:gap-2 sm:w-auto">
+                {(["none", "subtle", "moderate", "intense"] as const).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => updateDraft({ highlight_intensity: level })}
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-xs font-semibold transition-all border capitalize",
+                      (draft.highlight_intensity ?? "moderate") === level
+                        ? "bg-indigo-500 border-indigo-400 text-white"
+                        : "bg-white/5 border-white/5 text-slate-400 hover:text-white"
+                    )}
+                  >
+                    {level === "intense" ? "Bold" : level === "none" ? "None" : level}
+                  </button>
+                ))}
               </div>
-              <button
-                onClick={() => updateDraft({ fading_enabled: !draft.fading_enabled })}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                  draft.fading_enabled ? "bg-indigo-500" : "bg-white/10"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  draft.fading_enabled ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-            <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
-              onMouseEnter={() => allowHover && setHoveredPreview("autoCenter")}
-              onMouseLeave={() => setHoveredPreview(null)}
-            >
-              {hoveredPreview === "autoCenter" && <AutoCenterPreview enabled={draft.auto_center_scroll ?? true} />}
-              <div>
-                <p className="text-sm font-medium text-white cursor-help">Auto-Center Focus</p>
-                <p className="text-[10px] text-slate-500">Centering active highlight on every line change</p>
-              </div>
-              <button
-                onClick={() => updateDraft({ auto_center_scroll: !(draft.auto_center_scroll ?? true) })}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                  (draft.auto_center_scroll ?? true) ? "bg-indigo-500" : "bg-white/10"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  (draft.auto_center_scroll ?? true) ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
             </div>
 
             {/* LAAP (Linguistic-Aware Adaptive Pacing) toggle row */}
@@ -349,54 +466,209 @@ export default function SettingsScreen() {
               </button>
             </div>
 
-            {/* Highlight Intensity Row */}
+            {/* Auto-Center Focus */}
             <div 
-              className="relative flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 gap-3 sm:gap-0"
-              onMouseEnter={() => allowHover && setHoveredPreview("highlightIntensity")}
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("autoCenter")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
-              {hoveredPreview === "highlightIntensity" && <HighlightIntensityPreview />}
-              
-              <div className="self-start">
-                <p className="text-sm font-medium text-white cursor-help">Highlight Focus</p>
-                <p className="text-[10px] text-slate-500">Visual weight of the focus highlight</p>
+              {hoveredPreview === "autoCenter" && <AutoCenterPreview enabled={draft.auto_center_scroll ?? true} />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Auto-Center Focus</p>
+                <p className="text-[10px] text-slate-500">Centering active highlight on every line change</p>
               </div>
-              <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:gap-2 sm:w-auto">
-                {(["subtle", "moderate", "intense"] as const).map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => updateDraft({ highlight_intensity: level })}
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-xs font-semibold transition-all border capitalize",
-                      (draft.highlight_intensity ?? "moderate") === level
-                        ? "bg-indigo-500 border-indigo-400 text-white"
-                        : "bg-white/5 border-white/5 text-slate-400 hover:text-white"
-                    )}
-                  >
-                    {level === "intense" ? "Bold" : level}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => updateDraft({ auto_center_scroll: !(draft.auto_center_scroll ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.auto_center_scroll ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.auto_center_scroll ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
             </div>
 
-            {/* MCQ Timer Row */}
+            {/* Pacing Guide Line */}
             <div 
-              className="relative flex flex-col px-5 py-5 transition-colors hover:bg-white/5 last:rounded-b-2xl gap-4"
-              onMouseEnter={() => allowHover && setHoveredPreview("mcqTimer")}
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("guide")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "guide" && <PacingGuidePreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Pacing Guide Line</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ guide_enabled: !draft.guide_enabled })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  draft.guide_enabled ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  draft.guide_enabled ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* 1.5s Text Fading */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("fading")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "fading" && <TextFadingPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">1.5s Text Fading</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ fading_enabled: !draft.fading_enabled })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  draft.fading_enabled ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  draft.fading_enabled ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* Skimming Phase */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("skim")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "skim" && <SkimPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Skimming Phase</p>
+                <p className="text-[10px] text-slate-500">Enable 15s structural skimming before pacing starts</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ skim_enabled: !(draft.skim_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.skim_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.skim_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* HUD Progress Bar Toggle */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 cursor-help"
+              onMouseEnter={() => allowHover && setHoveredPreview("hudBar")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "hudBar" && <HUDBarPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">HUD Progress Bar</p>
+                <p className="text-[10px] text-slate-500">Show completion progress bar at the top of navbar during reading</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ progress_bar_enabled: !(draft.progress_bar_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.progress_bar_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.progress_bar_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* HUD Pacing Timer Toggle */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 cursor-help"
+              onMouseEnter={() => allowHover && setHoveredPreview("hudTimer")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "hudTimer" && <HUDTimerPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">HUD Pacing Timer</p>
+                <p className="text-[10px] text-slate-500">Show real-time elapsed pacing timer in navbar during reading</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ timer_enabled: !(draft.timer_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.timer_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.timer_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* Comprehension Checks (MCQs) Toggle Row */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+            >
+              <div>
+                <p className="text-sm font-medium text-white">Comprehension Checks (MCQs)</p>
+                <p className="text-[10px] text-slate-500">Provide multiple-choice questions after the reading session</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ mcqs_enabled: !(draft.mcqs_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.mcqs_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.mcqs_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* MCQ Question Timer Row */}
+            <div 
+              className={cn(
+                "relative flex flex-col px-5 py-5 transition-colors hover:bg-white/5 last:rounded-b-2xl gap-4",
+                !(draft.mcqs_enabled ?? true) && "opacity-40 bg-black/10"
+              )}
+              onMouseEnter={() => allowHover && (draft.mcqs_enabled ?? true) && setHoveredPreview("mcqTimer")}
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "mcqTimer" && <MCQTimerPreview value={draft.mcq_timer ?? 0} />}
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+              <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0", !(draft.mcqs_enabled ?? true) && "pointer-events-none")}>
                 <div>
-                  <p className="text-sm font-medium text-white cursor-help">MCQ Question Timer</p>
-                  <p className="text-[10px] text-slate-500">Allowed time per assessment question</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-white cursor-help">MCQ Question Timer</p>
+                    {!(draft.mcqs_enabled ?? true) && (
+                      <span className="text-[9px] font-bold text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full select-none">
+                        Locked
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    {!(draft.mcqs_enabled ?? true)
+                      ? "Requires Comprehension Checks (MCQs) to be turned on"
+                      : "Allowed time per assessment question"}
+                  </p>
                 </div>
                 
                 {/* Segmented Mode Control */}
                 <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 self-start sm:self-auto shrink-0">
                   <button
                     type="button"
+                    disabled={!(draft.mcqs_enabled ?? true)}
                     onClick={() => updateDraft({ mcq_timer: 0 })}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
@@ -409,6 +681,7 @@ export default function SettingsScreen() {
                   </button>
                   <button
                     type="button"
+                    disabled={!(draft.mcqs_enabled ?? true)}
                     onClick={() => {
                       if ((draft.mcq_timer ?? 0) === 0) {
                         updateDraft({ mcq_timer: 45 });
@@ -426,8 +699,8 @@ export default function SettingsScreen() {
                 </div>
               </div>
 
-              {/* Conditionally reveal slider if Timed mode is active */}
-              {(draft.mcq_timer ?? 0) > 0 && (
+              {/* Conditionally reveal slider if Timed mode is active and MCQs are enabled */}
+              {(draft.mcq_timer ?? 0) > 0 && (draft.mcqs_enabled ?? true) && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -650,26 +923,29 @@ function MCQTimerPreview({ value }: { value: number }) {
 }
 
 function HighlightIntensityPreview() {
-  const [level, setLevel] = useState<"subtle" | "moderate" | "intense">("subtle");
+  const [level, setLevel] = useState<"none" | "subtle" | "moderate" | "intense">("none");
 
   useEffect(() => {
     const timer = setInterval(() => {
       setLevel((prev) => {
+        if (prev === "none") return "subtle";
         if (prev === "subtle") return "moderate";
         if (prev === "moderate") return "intense";
-        return "subtle";
+        return "none";
       });
-    }, 1500);
+    }, 1100);
     return () => clearInterval(timer);
   }, []);
 
   const headings = {
+    none: "None (Raw Reading)",
     subtle: "Subtle (Soft Wash Focus)",
     moderate: "Moderate (Balanced Focus)",
     intense: "Bold (High Intensity Focus)",
   };
 
   const guidelines = {
+    none: "Traditional reading with zero active visual guidance.",
     subtle: "Best for minimal visual aid and natural pacing focus.",
     moderate: "Ideal for standard speed training & structural rhythm.",
     intense: "Excellent for aggressive speed building & complex text.",
@@ -684,19 +960,25 @@ function HighlightIntensityPreview() {
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center h-4">
         {headings[level]}
       </div>
-      <div className="relative py-4 text-center">
-        <span className="relative text-slate-200 text-sm font-medium px-4 select-none">
+      <div className="relative py-5 text-center">
+        <span className={cn(
+          "relative transition-all duration-300 px-4 py-1.5 select-none text-sm inline-block rounded",
+          level === "none" ? "text-slate-400 font-normal" : "text-white",
+          level === "subtle" && "font-medium",
+          level === "moderate" && "font-bold",
+          level === "intense" && "font-black text-indigo-200"
+        )}>
           <motion.span
             animate={{
-              backgroundColor: level === "subtle" ? "rgba(99, 102, 241, 0.15)" : level === "moderate" ? "rgba(99, 102, 241, 0.30)" : "rgba(99, 102, 241, 0.60)",
-              borderColor: level === "subtle" ? "rgba(99, 102, 241, 0.20)" : level === "moderate" ? "rgba(99, 102, 241, 0.40)" : "rgba(99, 102, 241, 0.80)",
-              left: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : "-14px",
-              right: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : "-14px",
-              top: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : "-4px",
-              bottom: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : "-4px",
+              backgroundColor: level === "none" ? "rgba(0,0,0,0)" : level === "subtle" ? "rgba(99, 102, 241, 0.15)" : level === "moderate" ? "rgba(99, 102, 241, 0.30)" : "rgba(99, 102, 241, 0.60)",
+              borderColor: level === "none" ? "rgba(0,0,0,0)" : level === "subtle" ? "rgba(99, 102, 241, 0.20)" : level === "moderate" ? "rgba(99, 102, 241, 0.40)" : "rgba(99, 102, 241, 0.80)",
+              left: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : level === "intense" ? "-14px" : "0px",
+              right: level === "subtle" ? "-2px" : level === "moderate" ? "-8px" : level === "intense" ? "-14px" : "0px",
+              top: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : level === "intense" ? "-4px" : "0px",
+              bottom: level === "subtle" ? "0px" : level === "moderate" ? "-2px" : level === "intense" ? "-4px" : "0px",
               boxShadow: level === "intense" ? "0 0 14px rgba(99, 102, 241, 0.5)" : "0 0 0px rgba(99, 102, 241, 0)",
             }}
-            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            transition={{ type: "spring", stiffness: 240, damping: 16 }}
             className="absolute rounded border -z-10"
           />
           Focus Word
@@ -811,6 +1093,109 @@ function LaapPreview() {
       <div className="text-[9px] text-slate-500 text-center mt-3 leading-relaxed">
         Pacing is automatically distributed by syllable and word weight, matching your exact target WPM.
       </div>
+    </motion.div>
+  );
+}
+
+function SkimPreview() {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+    >
+      <div className="text-[10px] text-slate-400 mb-3.5 font-bold uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
+        <span>👁️</span> Structural Skimming
+      </div>
+      <div className="relative space-y-3.5 py-1 text-xs">
+        {/* Paragraph 1 */}
+        <div className="space-y-1">
+          <motion.div 
+            animate={{ 
+              color: ["#cbd5e1", "#818cf8", "#cbd5e1"],
+              textShadow: ["none", "0 0 8px rgba(129,140,248,0.4)", "none"]
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="font-bold text-[11px]"
+          >
+            The fundamental premise of speed reading...
+          </motion.div>
+          <div className="h-1.5 w-11/12 bg-white/5 rounded-full" />
+          <div className="h-1.5 w-4/5 bg-white/5 rounded-full" />
+        </div>
+        
+        {/* Paragraph 2 */}
+        <div className="space-y-1">
+          <motion.div 
+            animate={{ 
+              color: ["#cbd5e1", "#818cf8", "#cbd5e1"],
+              textShadow: ["none", "0 0 8px rgba(129,140,248,0.4)", "none"]
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="font-bold text-[11px]"
+          >
+            By scanning anchor phrases before pacing...
+          </motion.div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full" />
+          <div className="h-1.5 w-3/4 bg-white/5 rounded-full" />
+        </div>
+      </div>
+      <p className="text-[9px] text-slate-500 text-center mt-3.5 leading-relaxed border-t border-white/5 pt-2">
+        Cognitive priming: guides the eyes to anchor the first sentence of paragraphs, building a conceptual map.
+      </p>
+    </motion.div>
+  );
+}
+
+function HUDBarPreview() {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+    >
+      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
+        HUD Progress Bar
+      </div>
+      <div className="h-5 w-full bg-white/5 border border-white/8 rounded-lg overflow-hidden flex items-center relative px-2">
+        <motion.div
+          animate={{ width: ["0%", "100%", "0%"] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="h-1 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)] rounded animate-pulse"
+        />
+      </div>
+      <p className="text-[9px] text-slate-500 text-center mt-2.5 leading-relaxed">
+        A high-performance linear bar at the top of the screen showing your completion percentage.
+      </p>
+    </motion.div>
+  );
+}
+
+function HUDTimerPreview() {
+  const [seconds, setSeconds] = useState(15);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSeconds((s) => (s >= 30 ? 15 : s + 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+    >
+      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
+        HUD Pacing Timer
+      </div>
+      <div className="h-8 w-full bg-white/5 border border-white/8 rounded-lg flex items-center justify-center font-mono font-bold text-indigo-400 text-sm">
+        0:{seconds < 10 ? `0${seconds}` : seconds}
+      </div>
+      <p className="text-[9px] text-slate-500 text-center mt-2.5 leading-relaxed">
+        Displays your exact active reading time to monitor visual speed bursts precisely.
+      </p>
     </motion.div>
   );
 }

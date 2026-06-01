@@ -14,6 +14,7 @@ export interface Question {
   type: QuestionType;
   stem: string;
   options: [string, string, string, string]; // Always exactly 4
+  explanations?: string[]; // 4 explanation strings (A, B, C, D order)
   // correct_index is NOT included — only returned by the API after submission
 }
 
@@ -26,7 +27,6 @@ export interface Passage {
   body: string;
   word_count: number;
   domain: Domain;
-  level: 1 | 2 | 3 | 4;
   generated_by: string;
   flagged: boolean;
   created_at: string;

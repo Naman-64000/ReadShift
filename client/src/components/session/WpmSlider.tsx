@@ -4,7 +4,7 @@
 
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { WPM_MIN, WPM_MAX, WPM_STEP, WPM_LEVELS } from "@/lib/constants";
+import { WPM_MIN, WPM_MAX, WPM_STEP } from "@/lib/constants";
 
 interface WpmSliderProps {
   value: number;
@@ -23,12 +23,14 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
     [onChange]
   );
 
-  // Which level does the current WPM fall in?
-  const currentLevel = Object.entries(WPM_LEVELS).find(
-    ([, lvl]) => value >= lvl.min && value <= lvl.max
-  );
-  const levelLabel = currentLevel ? currentLevel[1].label : value > 400 ? "Expert+" : "Getting Started";
-  const levelDesc  = currentLevel ? currentLevel[1].description : "";
+  // Descriptive speed label based on WPM range
+  const getSpeedLabel = (wpm: number) => {
+    if (wpm < 200) return { label: "Beginner Pace",  desc: "Building your reading foundation" };
+    if (wpm < 300) return { label: "Comfortable Pace", desc: "Solid everyday reading speed" };
+    if (wpm < 400) return { label: "Advanced Pace",  desc: "Competitive reading speed" };
+    return { label: "Elite Pace",     desc: "High-performance reading" };
+  };
+  const { label: speedLabel, desc: speedDesc } = getSpeedLabel(value);
 
   return (
     <div className={cn("space-y-5", className)}>
@@ -39,7 +41,7 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
         </div>
         <div className="text-base font-semibold text-indigo-400 mt-1">WPM</div>
         <div className="text-sm text-slate-400 mt-0.5">
-          {levelLabel}{levelDesc ? ` — ${levelDesc}` : ""}
+          {speedLabel}{speedDesc ? ` — ${speedDesc}` : ""}
         </div>
       </div>
 

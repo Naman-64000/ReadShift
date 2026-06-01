@@ -4,7 +4,7 @@
  * Passage Warming — core logic + BullMQ worker wrapper.
  *
  * Key exports:
- *  - `runPassageWarming(domain, level, count)` — pure async function that runs
+ *  - `runPassageWarming(domain, count)` — pure async function that runs
  *    the generation loop without any BullMQ dependency. Can be called directly
  *    from the in-memory fallback scheduler or from anywhere in the codebase.
  *  - `startPassageWarmingWorker()` — registers a BullMQ Worker that delegates
@@ -33,15 +33,14 @@ import { evaluatePassageQuality } from "../services/passageQualityService.js";
  */
 export async function runPassageWarming(
   domain: string,
-  level: number,
   count: number
 ): Promise<void> {
-  logger.info({ domain, level, count }, "Starting passage warming run");
+  logger.info({ domain, count }, "Starting passage warming run");
 
   for (let i = 0; i < count; i++) {
     try {
       // 1. Generate Passage
-      const passageData = await aiService.generatePassage(domain, level);
+      const passageData = await aiService.generatePassage(domain);
 
       // 2. Generate Questions
       const questions = await aiService.generateQuestions(passageData.body);
@@ -60,7 +59,6 @@ export async function runPassageWarming(
           body: passageData.body,
           word_count: passageData.word_count,
           domain: domain as any,
-          level,
           generated_by: passageData.generated_by,
           source: "gemini",
           status: quality.status,
@@ -73,14 +71,15 @@ export async function runPassageWarming(
               stem: q.stem,
               options: q.options,
               correct_index: q.correct_index,
+              explanations: q.explanations,
             })),
           },
         },
       });
 
-      logger.info({ domain, level, step: i + 1 }, "Generated passage successfully");
+      logger.info({ domain, step: i + 1 }, "Generated passage successfully");
     } catch (err) {
-      logger.error({ err, domain, level }, "Failed to generate passage in warming run");
+      logger.error({ err, domain }, "Failed to generate passage in warming run");
       // Continue to next generation rather than failing the whole batch
     }
   }
@@ -97,8 +96,8 @@ export function startPassageWarmingWorker() {
   const worker = new Worker<PassageGenerationJobData>(
     QUEUE_NAMES.PASSAGE_WARMING,
     async (job: Job<PassageGenerationJobData>) => {
-      const { domain, level, count } = job.data;
-      await runPassageWarming(domain, level, count);
+      const { domain, count } = job.data;
+      await runPassageWarming(domain, count);
     },
     {
       connection: redis,

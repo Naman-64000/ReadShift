@@ -7,6 +7,8 @@ import {
   updateAdminPassage,
   listAdminUsers,
   updateAdminUser,
+  getUserSeenPassages,
+  resetUserSeenPassage,
 } from "../controllers/admin.js";
 
 const router = Router();
@@ -18,5 +20,7 @@ router.get("/passages", listAdminPassages);
 router.patch("/passages/:id", updateAdminPassage);
 router.get("/users", listAdminUsers);
 router.patch("/users/:id", updateAdminUser);
+router.get("/users/:id/seen-passages", getUserSeenPassages);
+router.delete("/users/:id/seen-passages/:passageId", resetUserSeenPassage);
 
 export default router;

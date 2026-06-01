@@ -26,7 +26,7 @@ export function useSession() {
     return wpmToIntervalMs(store.config.target_wpm, store.config.chunk_size);
   }, [store.config]);
 
-  const isLaapActive = !!preferences?.laap_enabled;
+  const isLaapActive = preferences?.laap_enabled ?? true;
 
   const laapIntervalsMs = useMemo(() => {
     if (!store.passage || !store.config || !isLaapActive) return [];

@@ -16,7 +16,7 @@ interface ReadingEngineProps {
   guideEnabled: boolean;
   colWidth: ColWidth;
   fontSizePx: number;
-  highlightIntensity: "subtle" | "moderate" | "intense";
+  highlightIntensity: "none" | "subtle" | "moderate" | "intense";
   autoCenterScroll?: boolean;
   isPaused?: boolean;
 }
@@ -68,9 +68,8 @@ export default function ReadingEngine({
 
   // Scroll active chunk into view based on autoCenterScroll setting
   useEffect(() => {
-    if (activeChunkRef.current) {
-      const scrollBlock = autoCenterScroll ? "center" : "nearest";
-      activeChunkRef.current.scrollIntoView({ block: scrollBlock, behavior: "smooth" });
+    if (autoCenterScroll && activeChunkRef.current) {
+      activeChunkRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }, [currentChunkIndex, autoCenterScroll]);
 
@@ -98,7 +97,8 @@ export default function ReadingEngine({
     [chunks, currentChunkIndex, fadingEnabled, fadedIndex]
   );
 
-  const intensityClasses: Record<"subtle" | "moderate" | "intense", string> = {
+  const intensityClasses: Record<"none" | "subtle" | "moderate" | "intense", string> = {
+    none: "",
     subtle: "bg-indigo-500/15 border-indigo-500/20 -inset-x-0.5 -inset-y-0",
     moderate: "bg-indigo-500/30 border-indigo-500/40 -inset-x-2 -inset-y-0.5",
     intense: "bg-indigo-500/60 border-indigo-500/80 -inset-x-3.5 -inset-y-1 shadow-[0_0_14px_rgba(99,102,241,0.5)]",
@@ -122,23 +122,22 @@ export default function ReadingEngine({
         )}
         style={{ fontSize: `${fontSizePx}px` }}
       >
-        {words.map(({ chunkIdx, words: chunkWords, isParagraphStart, isActive, isFaded }) => (
+        {words.map(({ chunkIdx, words: chunkWords, isParagraphStart, isActive }) => (
           <span key={chunkIdx}>
             {isParagraphStart && chunkIdx > 0 && <span className="block h-5" aria-hidden />}
             <span
               ref={isActive ? activeChunkRef : null}
               className={cn(
                 "relative inline transition-colors duration-500",
-                isActive ? "text-white" : "text-slate-300",
-                isFaded && "text-slate-800 opacity-20"
+                isActive && highlightIntensity !== "none" ? "text-white" : "text-slate-300"
               )}
             >
               {/* Highlight box behind active chunk */}
-              {isActive && (
+              {isActive && highlightIntensity !== "none" && (
                 <motion.span
                   layoutId="highlight"
                   aria-hidden
-                  className={cn("absolute rounded -z-10 transition-all duration-300", intensityClasses[highlightIntensity])}
+                  className={cn("absolute rounded -z-10", intensityClasses[highlightIntensity])}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}

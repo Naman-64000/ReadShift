@@ -1,28 +1,26 @@
 /**
  * client/src/lib/drillTexts.ts
  *
- * Static bank of drill texts for Subvocalization Metronome Drills.
- *
- * Design principles:
- *  - Texts use only high-frequency, common English words (sight words, function words,
- *    simple nouns and verbs). The goal is ZERO cognitive load on meaning — the brain
- *    should process symbols visually without phonetic relay.
- *  - Texts are short (40–65 words) so a single drill takes 5–15 seconds at target speed.
- *  - Three tiers of target WPM: 500 / 650 / 800.
- *  - Multiple texts per tier allow rotation so the user never reads the same thing twice.
+ * Static bank of high-difficulty drill texts for Subvocalization Metronome Drills.
+ * Paired with challenging active-recall checks.
  */
 
 export interface DrillText {
   id: string;
   text: string;
   wordCount: number;
+  question: {
+    stem: string;
+    options: [string, string];
+    correctIndex: 0 | 1;
+  };
 }
 
 export interface DrillTier {
   id: "tier1" | "tier2" | "tier3";
   label: string;
   targetWpm: number;
-  chunkSize: 2;
+  chunkSize: number;
   description: string;
   hint: string;
   color: "indigo" | "violet" | "cyan";
@@ -31,118 +29,139 @@ export interface DrillTier {
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 
-function makeDrill(id: string, text: string): DrillText {
+function makeDrill(
+  id: string,
+  text: string,
+  stem: string,
+  options: [string, string],
+  correctIndex: 0 | 1
+): DrillText {
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  return { id, text: text.trim(), wordCount };
+  return {
+    id,
+    text: text.trim(),
+    wordCount,
+    question: { stem, options, correctIndex },
+  };
 }
 
-// ── Tier 1: 500 WPM — Ultra-simple sight words & function phrases ──────────
+// ── Tier 1: 300 WPM — Ignition (Base Pacing Stretch) ──────────────────────
 
 const tier1Texts: DrillText[] = [
-  makeDrill("t1-01",
-    "He is here. She was there. They went up and down. We can see the big red ball. " +
-    "It is my book. You have it. The dog runs. A cat sat. I run fast. We go now. " +
-    "Look at me. Come and see. He had a hat. The sun is hot. It was a good day."
+  makeDrill(
+    "t1-01",
+    "Classical foundationalism posits that knowledge is structured as a building, resting upon secure, indubitable foundational beliefs. Yet, this linear structure invites infinite regress skepticism. Coherentism challenges this architectural metaphor, suggesting instead that beliefs are justified mutually within a web-like system of reciprocal support. The primary conceptual difficulty lies in determining whether a coherent web of beliefs must connect to external reality, or if it can remain entirely self-referential.",
+    "What conceptual metaphor does coherentism challenge?",
+    ["Linear foundational architecture", "Reciprocal web-like systems"],
+    0
   ),
-  makeDrill("t1-02",
-    "The man and the woman walk to the park. A boy and a girl sit on a bench. " +
-    "The sky is blue. The grass is green. The dog runs to the tree. A bird sings. " +
-    "It is a warm day. They feel happy. She laughs. He smiles. They go home."
+  makeDrill(
+    "t1-02",
+    "The Copenhagen interpretation of quantum mechanics asserts that physical systems lack definite properties prior to measurement, existing instead in a state of probability wave superposition. Einstein famously objected to this probabilistic framework, arguing that the universe is governed by objective realism. Modern Bell inequality tests, however, consistently support the Copenhagen paradigm, demonstrating that local hidden variables cannot account for quantum entanglement, thereby forcing physicists to abandon localized deterministic realism.",
+    "What do modern Bell inequality tests demonstrate?",
+    ["Local hidden variables are insufficient", "Quantum particles exhibit deterministic trajectories"],
+    0
   ),
-  makeDrill("t1-03",
-    "I woke up and got out of bed. I washed my face and ate some food. " +
-    "Then I put on my coat and went out the door. The sun was up and the air was cool. " +
-    "I walked to the bus stop and got on the bus. It took me to work. I sat at my desk."
+  makeDrill(
+    "t1-03",
+    "Revisionist historians argue that the transition to industrial manufacturing did not immediately erode agrarian labor networks. Rather, early factory systems depended heavily on seasonal agricultural rhythms. Workers routinely migrated back to farms during harvest seasons, creating a symbiotic rather than antagonistic labor market. Traditional narratives of sudden urban displacement oversimplify this complex period of industrial integration.",
+    "According to revisionist historians, what characterized early industrial integration?",
+    ["Symbiotic agricultural-industrial labor migration", "Sudden and permanent urban worker displacement"],
+    0
   ),
-  makeDrill("t1-04",
-    "We had fun at the park. We ran and we jumped. We sat in the grass and ate our lunch. " +
-    "The sun was warm on our skin. A dog came to us and we played with it. " +
-    "Then we went home and had a rest. It was a good day. We want to go back."
+  makeDrill(
+    "t1-04",
+    "Hyperbolic discounting models demonstrate that humans exhibit dynamic inconsistency in intertemporal choices. When evaluating rewards, individuals display an extreme preference for immediate payoffs over delayed gratification, even if the future reward is exponentially larger. This bias systematically distorts long-term consumer debt planning, forcing economists to recommend automated institutional savings commitments to correct for inherent human cognitive bias.",
+    "How does hyperbolic discounting affect long-term consumer choices?",
+    ["It distorts planning via immediate payoff bias", "It stabilizes planning through patient optimization"],
+    0
   ),
-  makeDrill("t1-05",
-    "She put the cup on the table. He took the book off the shelf. " +
-    "They sat down and started to read. The room was quiet. The light was soft. " +
-    "A clock on the wall made a tick tick tick sound. Time went by. The sun went down. " +
-    "They put the books away and got ready for bed."
+  makeDrill(
+    "t1-05",
+    "The panoptic surveillance state relies not on physical walls, but on internalizing constant observation. When citizens believe they are continuously monitored, they self-censor their behaviors, preemptively aligning with state-approved norms. This psychological enforcement mechanism operates with minimal administrative effort, shifting the burden of censorship directly onto the individual's subconscious mind, neutralizing dissent before it can materialize.",
+    "How does the panoptic surveillance state primarily enforce compliance?",
+    ["By internalizing observation to induce self-censorship", "Through active physical containment of dissenters"],
+    0
   ),
 ];
 
-// ── Tier 2: 650 WPM — Common everyday vocabulary & flowing prose ───────────
+// ── Tier 2: 400 WPM — Momentum (Advanced Stretch) ─────────────────────────
 
 const tier2Texts: DrillText[] = [
-  makeDrill("t2-01",
-    "Every morning the city comes alive with motion. Buses roll through wide streets, " +
-    "people step out of doorways and head toward their destinations with purpose. " +
-    "Coffee shops fill with the warm scent of roasting beans. A dog walker rounds the corner. " +
-    "Children with backpacks march toward school. The rhythm of the day begins, steady and familiar."
+  makeDrill(
+    "t2-01",
+    "Computational functionalism posits that human consciousness is fundamentally an algorithmic system, suggesting that mental states are defined solely by their functional roles. Critics counter with the 'qualia' objection, arguing that subjective, first-person experiences—such as the qualitative sensation of seeing red—cannot be reduced to computational inputs and outputs. This explanatory gap remains the central paradox in modern philosophy of mind.",
+    "What is the primary basis of the 'qualia' objection against computational functionalism?",
+    ["Algorithmic efficiency is limited", "Subjective experiences defy computational reduction"],
+    1
   ),
-  makeDrill("t2-02",
-    "The kitchen smells like garlic and butter. A pan sizzles on the stove. " +
-    "She chops the tomatoes with a sharp knife, her movements confident and quick. " +
-    "He pours two glasses of water and sets the table. Music plays softly from a small speaker on the counter. " +
-    "Outside, the sun goes down and the sky turns orange and pink. Dinner is almost ready."
+  makeDrill(
+    "t2-02",
+    "Transgenerational epigenetic inheritance challenges classical neo-Darwinian paradigms by showing that environmental stressors can leave biological marks on DNA. These marks alter gene expression across multiple generations without changing the underlying genetic sequence itself. While traditional evolutionary theory asserts that genetic mutation is the sole driver of adaptation, epigenetics reveals a faster, direct physiological response to historical ancestral environments.",
+    "How does transgenerational epigenetics differ from traditional neo-Darwinian mutation?",
+    ["By introducing direct physiological adaptation without sequence changes", "By relying strictly on slow, random chromosomal sequence mutations"],
+    0
   ),
-  makeDrill("t2-03",
-    "Reading every day builds a strong vocabulary and a sharper mind. " +
-    "When you read fast, you train your eyes to move across lines without hesitation. " +
-    "Your brain begins to recognize words as images rather than sounds. " +
-    "This is the key insight behind visual word processing. Practice makes the patterns stick. " +
-    "Speed comes naturally when anxiety disappears and trust in the eyes grows."
+  makeDrill(
+    "t2-03",
+    "The historiographical debate over Roman decline centers on whether the empire collapsed due to internal moral decay or external barbarian pressure. Modern economic historians offer a third perspective, emphasizing structural resource depletion. They argue that hyper-inflation, agrarian exhaustion, and severe debasement of the silver denarius eroded Roman military logistics, rendering the frontiers undefendable regardless of political leadership.",
+    "What factor do modern economic historians emphasize in the Roman decline?",
+    ["Political moral decay and external barbarian alliances", "Structural resource depletion and debasement"],
+    1
   ),
-  makeDrill("t2-04",
-    "The library was quiet on a Tuesday afternoon. Rows of shelves held thousands of stories. " +
-    "A student opened a heavy book and ran her finger along the page. " +
-    "An old man dozed in a corner chair, a paperback resting on his chest. " +
-    "The librarian moved silently between the aisles, returning books to their places. " +
-    "Outside, rain tapped lightly on the tall windows."
+  makeDrill(
+    "t2-04",
+    "In digital microtransaction markets, game-theoretic models explain how publishers exploit loss aversion. By creating artificial scarcity and temporal event windows, publishers induce high cognitive anxiety. Consumers feel compelled to purchase cosmetic digital assets not because they value them highly, but because they fear the regret of missing out. This asymmetry in player-firm information distorts rational equilibrium pricing.",
+    "How do publishers leverage game theory in digital microtransactions?",
+    ["By offering symmetric and transparent product utility", "By exploiting loss aversion and artificial scarcity"],
+    1
   ),
-  makeDrill("t2-05",
-    "Training your eyes is like training any other muscle. Repetition builds strength. " +
-    "Each drill you complete teaches your visual system to move faster with less effort. " +
-    "Your comprehension does not drop when you speed up correctly. " +
-    "In fact, faster reading often means better focus because the mind stays engaged. " +
-    "Slow reading lets the mind wander. Speed keeps it locked on the page."
+  makeDrill(
+    "t2-05",
+    "Modern social algorithms maximize engagement by amplifying controversial narratives. When exposed to polarizing content, users experience heightened emotional arousal, which increases their likelihood of sharing. This feedback loop creates isolated echo chambers, driving social polarization. The primary driver is not ideological malice, but the algorithmic commodification of human attention.",
+    "What is the primary systemic cause of echo chambers in modern networks?",
+    ["Algorithmic commodification of emotional engagement", "Widespread ideological malice and coordinated state censorship"],
+    0
   ),
 ];
 
-// ── Tier 3: 800 WPM — Flowing literary prose, still accessible ─────────────
+// ── Tier 3: 500 WPM — Elite (Maximum Peak Stretch) ───────────────────────
 
 const tier3Texts: DrillText[] = [
-  makeDrill("t3-01",
-    "The human brain is remarkably adaptive. When trained systematically, it can rewire the pathways " +
-    "that govern language processing, shifting from the slower auditory-phonetic route — where words " +
-    "are silently sounded out — to the faster visual-semantic route, where meaning arrives directly " +
-    "from the shape of words on the page. This shift is the foundation of elite reading performance. " +
-    "It does not require extraordinary intelligence. It requires focused, deliberate practice."
+  makeDrill(
+    "t3-01",
+    "The ascension of generative AI models provokes a philosophical re-evaluation of creative authorship. Traditional aesthetics link artistic value to conscious intentionality, requiring the artist to possess a subjective experience. Generative algorithms, lacking consciousness, output complex works via probability distributions. Critics argue this separates output from authorship, reducing AI creations to high-fidelity statistical collages.",
+    "What core requirement of traditional aesthetics does generative AI challenge?",
+    ["High-fidelity digital image resolution", "Conscious intentionality and subjective experience"],
+    1
   ),
-  makeDrill("t3-02",
-    "On a clear autumn morning, light arrived through the narrow windows of the study " +
-    "and fell in long golden bands across the wooden floor. She sat at the desk where " +
-    "her grandfather had once written letters, her fingers resting on the keys of a laptop. " +
-    "The contrast of old and new seemed fitting. Ideas from another century meeting the speed " +
-    "of a connected world. She began to write. The words came quickly, like water from a spring."
+  makeDrill(
+    "t3-02",
+    "Cephalopod intelligence challenges the vertebrate-centric paradigm of cognitive evolution. While human cognition is highly centralized within a single brain, an octopus possesses a decentralized nervous system. Two-thirds of its neurons reside in its arms, which can execute complex tactile tasks independently of the central brain. This decentralized architecture demonstrates that complex problem-solving can evolve outside a centralized cerebral cortex.",
+    "What does the nervous system of the cephalopod demonstrate about cognitive evolution?",
+    ["Intelligence requires centralized brain structures", "Complex cognition can evolve via decentralized architecture"],
+    1
   ),
-  makeDrill("t3-03",
-    "Competitive examinations reward the reader who can extract precise meaning from dense text " +
-    "under strict time pressure. The difference between a good score and an exceptional score " +
-    "is often measured in seconds per paragraph. Readers who have developed a visual processing habit " +
-    "navigate complex passages with calm efficiency. They absorb the main structure in a first pass " +
-    "and return only for specific detail when the question demands it. Speed and strategy combine."
+  makeDrill(
+    "t3-03",
+    "Post-colonial historians argue that mercantilist policies did not merely seek national trade surpluses. Instead, they served as institutional weapons of structural wealth extraction. By forcing colonies to export raw materials at artificially low prices and import finished manufactures at inflated rates, imperial powers suppressed local industrialization. This created a persistent dependency that hindered post-colonial economic development.",
+    "How did mercantilist policies affect colonial economies according to historians?",
+    ["By suppressing local industrialization via structural wealth extraction", "By fostering competitive, high-margin export-oriented colonial manufacturing"],
+    0
   ),
-  makeDrill("t3-04",
-    "The ocean at night is a different world entirely. Darkness erases the horizon and " +
-    "the water becomes infinite. Stars reflect on the surface in broken, shifting patterns. " +
-    "A ship moves slowly through this vastness, its lights tiny against the dark. " +
-    "Inside, the crew goes about their routines with practiced ease, the roll of the ship " +
-    "a constant companion. Out here, time has a different texture. Days blend into one another."
+  makeDrill(
+    "t3-04",
+    "Environmental, Social, and Governance (ESG) investing faces systemic greenwashing challenges. In the absence of standardized reporting regulations, companies exploit flexible ESG metrics to construct favorable public narratives. This lack of transparency allows high-emissions firms to attract low-cost capital, distorting market allocations. To restore market efficiency, economists demand standardized, third-party audited carbon disclosure indices.",
+    "What is the primary barrier to market efficiency in ESG investing?",
+    ["A lack of standardized, audited carbon disclosure metrics", "Excessive regulatory burdens and strict third-party audits"],
+    0
   ),
-  makeDrill("t3-05",
-    "Neuroplasticity — the brain's ability to form new connections — is not limited to childhood. " +
-    "Adults who pursue consistent cognitive training show measurable changes in the structure " +
-    "of their reading networks. The visual word form area, sometimes called the brain's letterbox, " +
-    "becomes more efficient with repeated high-speed exposure to text. In practical terms: " +
-    "the more you drill at speed, the more automatic and effortless rapid reading becomes. " +
-    "The ceiling is higher than most people believe."
+  makeDrill(
+    "t3-05",
+    "Modern smart-city architecture increasingly incorporates panoptic surveillance and hostile design. By installing physical barriers in public benches and employing facial-recognition networks, municipalities exclude marginalized groups from civic spaces. This defensive spatial design shifts urban planning from social inclusion to security maximization, converting public squares into controlled consumption zones.",
+    "What shift in urban planning does modern defensive spatial design represent?",
+    ["From social inclusion to security maximization", "From controlled commercialization to universal public access"],
+    0
   ),
 ];
 
@@ -152,30 +171,30 @@ export const DRILL_TIERS: DrillTier[] = [
   {
     id: "tier1",
     label: "Ignition",
-    targetWpm: 500,
+    targetWpm: 300,
     chunkSize: 2,
-    description: "Simple sight words at 500 WPM",
-    hint: "Focus on the flash, not the words. Let your eyes absorb patterns.",
+    description: "Reasoning-dense prose at 300 WPM",
+    hint: "Focus on foveal vision. Banish the inner voice and absorb the analytical blocks.",
     color: "indigo",
     texts: tier1Texts,
   },
   {
     id: "tier2",
     label: "Momentum",
-    targetWpm: 650,
+    targetWpm: 400,
     chunkSize: 2,
-    description: "Everyday prose at 650 WPM",
-    hint: "Stop any inner voice. Follow the beat. Trust your visual cortex.",
+    description: "Reasoning-dense prose at 400 WPM",
+    hint: "Increase your eye fixation width. Capture 2-word groups as single visual shapes.",
     color: "violet",
     texts: tier2Texts,
   },
   {
     id: "tier3",
     label: "Elite",
-    targetWpm: 800,
+    targetWpm: 500,
     chunkSize: 2,
-    description: "Flowing text at 800 WPM",
-    hint: "No phonetic relay. Pure visual acquisition. Be the metronome.",
+    description: "Reasoning-dense prose at 500 WPM",
+    hint: "Maximum cognitive threshold. Let foveal scanning lock onto semantic patterns.",
     color: "cyan",
     texts: tier3Texts,
   },

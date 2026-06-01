@@ -25,3 +25,36 @@ export async function flagPassage(req: Request, res: Response, next: NextFunctio
     res.json({ success: true, data: updated });
   } catch (err) { next(err); }
 }
+
+export async function ratePassage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { rating } = req.body;
+    if (rating !== "up" && rating !== "down") {
+      throw new AppError("VALIDATION_ERROR", "Rating must be 'up' or 'down'", 400);
+    }
+
+    const passage = await prisma.passage.findUnique({ where: { id: req.params.id } });
+    if (!passage) throw new AppError("NOT_FOUND", "Passage not found", 404);
+
+    let updated;
+    if (rating === "up") {
+      updated = await prisma.passage.update({
+        where: { id: req.params.id },
+        // Increment quality_score by 1, or initialize to 1 if it was null
+        data: { quality_score: passage.quality_score ? { increment: 1 } : 1 },
+      });
+    } else {
+      const newFlagCount = (passage.flag_count ?? 0) + 1;
+      updated = await prisma.passage.update({
+        where: { id: req.params.id },
+        data: {
+          flag_count: { increment: 1 },
+          flagged: newFlagCount >= 3 ? true : passage.flagged,
+          status: newFlagCount >= 3 ? "flagged" : passage.status,
+        },
+      });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) { next(err); }
+}

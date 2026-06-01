@@ -1,10 +1,9 @@
 /**
  * client/src/components/dashboard/AdvancedDiagnostics.tsx
- * Advanced diagnostics panel including Performance Heatmap matrix,
- * WPM Domain Slowdown analyzer, and optimal Sweet Spot Coach.
+ * Advanced diagnostics panel: Domain Performance Matrix, WPM Slowdown analyzer, Sweet Spot Coach.
+ * Level dimension removed — domain is the only segregation axis.
  */
 
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DashboardSummary, HeatmapCell } from "@/types";
 import { formatDomain } from "@/lib/utils";
@@ -14,43 +13,41 @@ interface AdvancedDiagnosticsProps {
   summary: DashboardSummary;
 }
 
+const DOMAIN_EMOJIS: Record<string, string> = {
+  abstract: "💡",
+  science:  "🔬",
+  business: "📈",
+  history:  "🏛️",
+  social:   "🧠",
+};
+
 export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProps) {
   const navigate = useNavigate();
-  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
   const { wpm_slowdown = [], heatmap_data = [], sweet_spot } = summary;
 
-  // Standard domains & levels
   const DOMAINS = ["abstract", "science", "business", "history", "social"];
-  const LEVELS = [1, 2, 3, 4];
 
-  // Helper: Find cell data
-  const getCellData = (domain: string, level: number): HeatmapCell | undefined => {
-    return heatmap_data.find((c) => c.domain === domain && c.level === level);
-  };
+  // Helper: Find cell data for a domain (no level dimension anymore)
+  const getCellData = (domain: string): HeatmapCell | undefined =>
+    heatmap_data.find((c) => c.domain === domain);
 
-  // Helper: Get HSL grid cell classes based on performance
+  // Helper: Get classes based on performance
   const getCellClasses = (cell?: HeatmapCell) => {
     if (!cell || cell.session_count === 0) {
-      return "bg-slate-900/40 border border-white/5 border-dashed text-slate-500 hover:bg-slate-800/40 hover:border-white/10";
+      return "bg-slate-900/40 border border-white/5 border-dashed text-slate-500 hover:bg-slate-800/40 hover:border-white/10 hover:scale-[1.03] hover:shadow-[0_0_15px_rgba(255,255,255,0.02)]";
     }
     if (cell.avg_accuracy >= 80) {
-      return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-[inset_0_0_12px_rgba(16,185,129,0.05)] hover:bg-emerald-500/15 hover:border-emerald-500/40";
+      return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-[inset_0_0_12px_rgba(16,185,129,0.05)] hover:bg-emerald-500/15 hover:border-emerald-500/40 hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]";
     }
     if (cell.avg_accuracy >= 70) {
-      return "bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 shadow-[inset_0_0_12px_rgba(99,102,241,0.05)] hover:bg-indigo-500/15 hover:border-indigo-500/40";
+      return "bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 shadow-[inset_0_0_12px_rgba(99,102,241,0.05)] hover:bg-indigo-500/15 hover:border-indigo-500/40 hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(99,102,241,0.15)]";
     }
-    return "bg-amber-500/10 text-amber-400 border border-amber-500/25 shadow-[inset_0_0_12px_rgba(245,158,11,0.05)] hover:bg-amber-500/15 hover:border-amber-500/40";
+    return "bg-amber-500/10 text-amber-400 border border-amber-500/25 shadow-[inset_0_0_12px_rgba(245,158,11,0.05)] hover:bg-amber-500/15 hover:border-amber-500/40 hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]";
   };
 
-  // Helper: Handle direct training navigation
-  const handleCellClick = (domain: string, level: number) => {
-    navigate("/session/config", {
-      state: {
-        drillDomain: domain,
-        drillLevel: level,
-      },
-    });
+  const handleDomainDrill = (domain: string) => {
+    navigate("/session/config", { state: { drillDomain: domain } });
   };
 
   return (
@@ -69,7 +66,6 @@ export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProp
           {/* Sweet Spot Card */}
           {sweet_spot ? (
             <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-6 relative overflow-hidden flex-1 flex flex-col justify-center">
-              {/* Decorative Indigo Gradient Glow */}
               <div className="absolute -top-12 -right-12 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl" />
               
               <div className="flex items-center gap-4">
@@ -158,13 +154,13 @@ export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProp
           </div>
         </div>
 
-        {/* 2. 5x4 Heatmap Matrix Column */}
+        {/* 2. Domain Performance Matrix */}
         <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-white/4 p-5 sm:p-6 space-y-4 flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Performance Matrix</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Accuracy & Speed by Domain × Difficulty. Tap cell to instantly launch drill.</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Domain Performance Matrix</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Accuracy & Speed by Domain. Tap a card to drill that domain.</p>
               </div>
               
               {/* Legend */}
@@ -175,7 +171,7 @@ export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProp
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded bg-indigo-500/20 border border-indigo-500/30" />
-                  <span className="text-slate-400">70-80%</span>
+                  <span className="text-slate-400">70–80%</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500/30" />
@@ -185,79 +181,55 @@ export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProp
             </div>
           </div>
 
-          {/* Heatmap Grid wrapper */}
-          <div className="w-full overflow-x-auto no-scrollbar pt-2">
-            <div className="min-w-[480px] grid grid-cols-5 gap-3.5">
-              {/* Grid Header column placeholders */}
-              <div className="col-span-1" />
-              {LEVELS.map((lvl) => (
-                <div key={lvl} className="text-center font-bold text-xs text-slate-400 uppercase tracking-widest leading-none pb-1">
-                  Level {lvl}
-                </div>
-              ))}
+          {/* Domain cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+            {DOMAINS.map((dom) => {
+              const cell = getCellData(dom);
+              const hasData = cell && cell.session_count > 0;
 
-              {/* Rows */}
-              {DOMAINS.map((dom) => (
-                <div key={dom} className="contents">
-                  {/* Row Label (Domain) */}
-                  <div className="col-span-1 flex items-center justify-start text-xs font-bold text-slate-300">
-                    {formatDomain(dom)}
+              return (
+                <div
+                  key={dom}
+                  className={cn(
+                    "relative rounded-xl p-4 flex flex-col gap-2 transition-all duration-300 cursor-pointer select-none group",
+                    getCellClasses(cell)
+                  )}
+                  onClick={() => handleDomainDrill(dom)}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">{DOMAIN_EMOJIS[dom] ?? "📝"}</span>
+                    <div className="flex items-center gap-1.5">
+                      {hasData && (
+                        <span className="text-xs font-bold font-mono tabular-nums opacity-70 group-hover:opacity-40 transition-opacity duration-300">
+                          {cell.session_count}×
+                        </span>
+                      )}
+                      <span className="text-[9px] font-black tracking-wider uppercase opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-300 bg-white/10 px-2 py-0.5 rounded border border-white/5">
+                        Drill →
+                      </span>
+                    </div>
                   </div>
-
-                  {/* Level Cells */}
-                  {LEVELS.map((lvl) => {
-                    const cell = getCellData(dom, lvl);
-                    const cellId = `${dom}-${lvl}`;
-
-                    return (
-                      <div
-                        key={lvl}
-                        className={cn(
-                          "relative h-[72px] rounded-xl flex flex-col items-center justify-center transition-all duration-300 cursor-pointer shadow-md select-none",
-                          getCellClasses(cell)
-                        )}
-                        onClick={() => handleCellClick(dom, lvl)}
-                        onMouseEnter={() => setHoveredCell(cellId)}
-                        onMouseLeave={() => setHoveredCell(null)}
-                      >
-                        {cell && cell.session_count > 0 ? (
-                          <>
-                            <span className="text-sm font-black tracking-tight leading-none">
-                              {cell.avg_accuracy}%
-                            </span>
-                            <span className="text-[10px] font-bold font-mono opacity-80 mt-1 tabular-nums">
-                              {cell.avg_wpm}
-                            </span>
-                            <span className="text-[8px] opacity-50 font-medium tracking-wide scale-95 mt-0.5 leading-none">
-                              WPM
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-lg opacity-40 font-light">+</span>
-                        )}
-
-                        {/* Beautiful Floating Tooltip */}
-                        {hoveredCell === cellId && (
-                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 bg-[#0d1527] border border-white/10 text-slate-200 text-[10px] rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-2xl leading-relaxed pointer-events-none transition-all duration-200">
-                            <span className="font-bold text-indigo-400">{formatDomain(dom)} (L{lvl})</span>
-                            <br />
-                            {cell && cell.session_count > 0 ? (
-                              <>
-                                Accuracy: <span className="text-white font-bold">{cell.avg_accuracy}%</span> · Speed: <span className="text-white font-bold">{cell.avg_wpm} WPM</span>
-                                <br />
-                                Sessions completed: <span className="text-white font-bold">{cell.session_count}</span>
-                              </>
-                            ) : (
-                              "No sessions completed yet"
-                            )}
-                          </div>
-                        )}
+                  
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+                      {formatDomain(dom)}
+                    </p>
+                    {hasData ? (
+                      <div className="mt-1.5 space-y-0.5">
+                        <p className="text-xl font-black tracking-tight leading-none">
+                          {cell.avg_accuracy}%
+                        </p>
+                        <p className="text-[11px] font-mono font-bold opacity-70">
+                          {cell.avg_wpm} WPM
+                        </p>
                       </div>
-                    );
-                  })}
+                    ) : (
+                      <p className="text-xs text-slate-500 mt-1">No sessions yet — click to drill</p>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>

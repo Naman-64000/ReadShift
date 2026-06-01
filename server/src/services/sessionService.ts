@@ -21,39 +21,57 @@ function weightedRandomPick<T>(items: T[], getWeight: (item: T) => number): T | 
 
 export const sessionService = {
   /** Pick an unseen passage for this user, atomically record the view */
-  async pickPassage(userId: string, domain?: string, level?: number) {
-    // 1. Get user's current level if not provided
-    let targetLevel = level;
-    if (!targetLevel) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { level: true },
-      });
-      targetLevel = user?.level ?? 1;
-    }
+  async pickPassage(userId: string, domain?: string) {
 
-    console.log(`[pickPassage] userId: ${userId}, domain: ${domain}, targetLevel: ${targetLevel}`);
+    console.log(`[pickPassage] userId: ${userId}, domain: ${domain}`);
 
-    const seen = await prisma.userPassageSeen.findMany({
-      where: { user_id: userId },
-      select: { passage_id: true },
-    });
-    const seenIds = seen.map((s) => s.passage_id);
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
+    const [seen, activeAssignments] = await Promise.all([
+      prisma.userPassageSeen.findMany({
+        where: { user_id: userId },
+        select: { passage_id: true },
+      }),
+      prisma.passageAssignment.findMany({
+        where: {
+          user_id: userId,
+          assigned_at: { gte: twoHoursAgo },
+        },
+        select: { passage_id: true },
+      }),
+    ]);
+    const excludedIds = Array.from(new Set([
+      ...seen.map((s) => s.passage_id),
+      ...activeAssignments.map((a) => a.passage_id),
+    ]));
 
+    // NOTE: Level filtering is intentionally omitted here.
+    // All AI-generated passages are CAT/GMAT level content (originally seeded as level 3-4).
+    // The `level` field is preserved for future adaptive difficulty features,
+    // but we do not gate the passage pool by user level at this stage.
     const baseWhere = {
       flagged: false,
       status: "ready" as const,
-      id: { notIn: seenIds.length ? seenIds : ["none"] },
-      level: targetLevel,
+      id: { notIn: excludedIds.length ? excludedIds : ["none"] },
     };
 
     let chosenDomain = domain;
     if (!chosenDomain) {
-      const allDomains = ["business", "science", "history", "abstract", "social"];
-      // Shuffle domains randomly to try them in a random order with equal probability
-      const shuffled = [...allDomains].sort(() => Math.random() - 0.5);
+      // Query user preferences to respect their selected settings domains
+      const userPrefs = await prisma.userPreferences.findUnique({
+        where: { user_id: userId },
+      });
+      const allowedDomains = userPrefs?.domains && userPrefs.domains.length > 0
+        ? userPrefs.domains
+        : ["business", "science", "history", "abstract", "social"];
       
-      // Select the first domain in our shuffled list that has unseen ready passages at this level
+      // Shuffle allowed domains randomly using unbiased Fisher-Yates algorithm
+      const shuffled = [...allowedDomains];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      // Select the first domain in our shuffled list that has unseen ready passages
       for (const d of shuffled) {
         const count = await prisma.passage.count({
           where: {
@@ -135,9 +153,9 @@ export const sessionService = {
     if (!passage) {
       console.log(`[pickPassage] Unseen active DB pool exhausted. Triggering Static Vault Fallback...`);
       
-      let vaultCandidates = staticVault.filter((p) => p.level === targetLevel && p.domain === chosenDomain);
+      let vaultCandidates = staticVault.filter((p) => p.domain === chosenDomain);
       if (!vaultCandidates.length) {
-        vaultCandidates = staticVault.filter((p) => p.level === targetLevel);
+        vaultCandidates = [...staticVault];
       }
 
       for (const vp of vaultCandidates) {
@@ -160,7 +178,6 @@ export const sessionService = {
               body: vp.body,
               word_count: vp.body.trim().split(/\s+/).filter(Boolean).length,
               domain: vp.domain as any,
-              level: vp.level,
               generated_by: "static_vault",
               source: "static_vault",
               status: "ready",
@@ -182,7 +199,7 @@ export const sessionService = {
           });
         }
 
-        if (!seenIds.includes(dbPassage.id)) {
+        if (!excludedIds.includes(dbPassage.id)) {
           passage = dbPassage;
           break;
         }
@@ -197,7 +214,6 @@ export const sessionService = {
         where: {
           user_id: userId,
           passage: {
-            level: targetLevel,
             flagged: false,
             status: "ready",
           },
@@ -229,7 +245,7 @@ export const sessionService = {
     }
 
     if (!passage) {
-      throw new AppError("POOL_EXHAUSTED", `No level ${targetLevel} passages available in any pool`, 404);
+      throw new AppError("POOL_EXHAUSTED", `No passages available in any pool`, 404);
     }
 
     // Record the view atomically (only for newly assigned, non-recycled passages)
@@ -245,9 +261,18 @@ export const sessionService = {
         user_id: userId,
         passage_id: passage.id,
         domain_requested: (domain as any) ?? null,
-        level_requested: targetLevel,
       },
     });
+
+    // Shuffle GMAT questions randomly using Fisher-Yates shuffle
+    if (passage && passage.questions) {
+      const q = [...passage.questions];
+      for (let i = q.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [q[i], q[j]] = [q[j], q[i]];
+      }
+      passage.questions = q;
+    }
 
     return passage;
   },
@@ -261,6 +286,7 @@ export const sessionService = {
     chunk_size: number;
     fading_used: boolean;
     guide_used: boolean;
+    timezone_offset?: number;
     responses: Array<{ question_id: string; selected_index: number; time_taken_ms: number }>;
   }) {
     const passage = await prisma.passage.findUnique({
@@ -268,6 +294,21 @@ export const sessionService = {
       include: { questions: { select: { id: true, correct_index: true } } },
     });
     if (!passage) throw new AppError("NOT_FOUND", "Passage not found", 404);
+
+    // Timing validation & safety check (Issue #9)
+    if (!payload.elapsed_ms || payload.elapsed_ms < 5000) {
+      throw new AppError("VALIDATION_ERROR", "Reading duration too short to be valid", 400);
+    }
+
+    // Verify client timing against server elapsed time (Issue #2)
+    // The total real-world elapsed time since starting the session must be at least as long
+    // as the active reading duration (allowing a 5-second buffer for clock skew or network lag).
+    // Note: The user may spend additional time on the "Ready to Begin" overlay, structural skimming,
+    // and answering the MCQs, so serverElapsedMs can be significantly larger than payload.elapsed_ms.
+    const serverElapsedMs = Date.now() - new Date(payload.started_at).getTime();
+    if (serverElapsedMs < payload.elapsed_ms - 5000) {
+      throw new AppError("VALIDATION_ERROR", "Reading session duration is invalid.", 400);
+    }
 
     // Server-side WPM calculation
     const actual_wpm = Math.round((passage.word_count / payload.elapsed_ms) * 60_000);
@@ -284,7 +325,7 @@ export const sessionService = {
     const comprehension = evaluatedResponses.filter((r) => r.is_correct).length;
 
     // Write session + responses in one transaction
-    const { session, level_up } = await prisma.$transaction(async (tx) => {
+    const { session } = await prisma.$transaction(async (tx) => {
       const sess = await tx.session.create({
         data: {
           user_id: userId,
@@ -297,7 +338,6 @@ export const sessionService = {
           fading_used: payload.fading_used,
           guide_used: payload.guide_used,
           domain: passage.domain,
-          level: passage.level,
           started_at: new Date(payload.started_at),
           completed_at: new Date(),
         },
@@ -313,32 +353,13 @@ export const sessionService = {
         })),
       });
 
-      // Level promotion check — 3 consecutive sessions with comprehension ≥ 2 and speed ≥ level threshold
-      const recentSessions = await tx.session.findMany({
-        where: { user_id: userId },
-        orderBy: { completed_at: "desc" },
-        take: 3,
-        select: { comprehension: true, actual_wpm: true, level: true },
-      });
-
-      const isLevelUp =
-        recentSessions.length === 3 &&
-        recentSessions.every((s) => s.comprehension >= 2) &&
-        recentSessions.every((s) => s.actual_wpm >= s.level * 100);
-
-      if (isLevelUp) {
-        await tx.user.update({
-          where: { id: userId },
-          data: { level: { increment: 1 } },
-        });
-      }
-
-      // Streak management
+      // Fetch user data for streak management
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { streak_days: true, last_session_at: true },
       });
 
+      // Streak management (Issue #14)
       let newStreak = user?.streak_days ?? 0;
       const now = new Date();
       const lastSession = user?.last_session_at;
@@ -346,10 +367,11 @@ export const sessionService = {
       if (!lastSession) {
         newStreak = 1;
       } else {
-        const lastDate = new Date(lastSession).toISOString().slice(0, 10);
-        const todayDate = now.toISOString().slice(0, 10);
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
+        const offset = payload.timezone_offset ?? 0;
+        const lastDate = new Date(lastSession.getTime() - offset * 60_000).toISOString().slice(0, 10);
+        const todayDate = new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+        const yesterday = new Date(now.getTime() - offset * 60_000);
+        yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayDate = yesterday.toISOString().slice(0, 10);
 
         if (lastDate === yesterdayDate) {
@@ -369,11 +391,25 @@ export const sessionService = {
         },
       });
 
-      return { session: sess, level_up: isLevelUp };
+      return { session: sess };
     });
 
-    const responses = await prisma.response.findMany({ where: { session_id: session.id } });
+    const responses = await prisma.response.findMany({
+      where: { session_id: session.id },
+      include: { question: { select: { correct_index: true, explanations: true } } },
+    });
 
-    return { session, responses, actual_wpm, comprehension, level_up };
+    const responsesWithCorrect = responses.map((r) => ({
+      id: r.id,
+      session_id: r.session_id,
+      question_id: r.question_id,
+      selected_index: r.selected_index,
+      is_correct: r.is_correct,
+      time_taken_ms: r.time_taken_ms,
+      correct_index: r.question.correct_index,
+      explanations: r.question.explanations,
+    }));
+
+    return { session, responses: responsesWithCorrect, actual_wpm, comprehension };
   },
 };

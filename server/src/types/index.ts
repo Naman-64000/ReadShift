@@ -34,7 +34,6 @@ export interface AuthPayload {
 /** BullMQ job data for passage generation tasks */
 export interface PassageGenerationJobData {
   domain: string;
-  level: number;
   count: number;      // Number of passages to generate in this job
 }
 

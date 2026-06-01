@@ -52,7 +52,6 @@ model User {
   email     String   @unique
   clerk_id  String   @unique
   is_admin  Boolean  @default(true) @map("is_admin")
-  level     Int      @default(1) @map("level")
   streak_days Int      @default(0) @map("streak_days")
   last_session_at DateTime? @map("last_session_at")
   created_at DateTime @default(now()) @map("created_at")
@@ -86,6 +85,10 @@ model UserPreferences {
   highlight_intensity String @default("moderate") // subtle | moderate | intense
   auto_center_scroll Boolean  @default(true)      // auto-center active line
   laap_enabled   Boolean  @default(true)      @map("laap_enabled") // linguistic-aware adaptive pacing
+  skim_enabled   Boolean  @default(true)      @map("skim_enabled") // structural skimming before reading
+  mcqs_enabled   Boolean  @default(true)      @map("mcqs_enabled") // enable/disable MCQs after reading session
+  progress_bar_enabled Boolean  @default(true)      @map("progress_bar_enabled") // show/hide HUD progress bar
+  timer_enabled  Boolean  @default(true)      @map("timer_enabled")        // show/hide HUD timer
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -104,7 +107,6 @@ model Passage {
   body         String  // Full passage text, 250–350 words
   word_count   Int     @map("word_count")
   domain       Domain
-  level        Int     // 1–4 difficulty level (maps to WPM comfort range)
   generated_by String  @map("generated_by") // e.g. "claude-sonnet-4-6"
   source       String  @default("seed")
   status       PassageStatus @default(ready)
@@ -112,6 +114,7 @@ model Passage {
   topic_key    String? @map("topic_key")
   hash         String? @unique
   flagged      Boolean @default(false)       // true = excluded from pool pending review
+  flag_count   Int     @default(0) @map("flag_count")
   created_at   DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -128,7 +131,6 @@ model PassageAssignment {
   user_id          String   @map("user_id")
   passage_id       String   @map("passage_id")
   domain_requested Domain?  @map("domain_requested")
-  level_requested  Int      @map("level_requested")
   assigned_at      DateTime @default(now()) @map("assigned_at")
 
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -152,6 +154,7 @@ model Question {
   stem          String       // The question text
   options       String[]     // 4 answer option strings (A, B, C, D order)
   correct_index Int          @map("correct_index") // 0–3 index into options[]
+  explanations  String[]     // 4 explanation strings corresponding to options (A, B, C, D order)
 
   // Relations
   passage   Passage    @relation(fields: [passage_id], references: [id], onDelete: Cascade)
@@ -177,7 +180,6 @@ model Session {
   fading_used   Boolean  @map("fading_used")
   guide_used    Boolean  @map("guide_used")
   domain        String                          // Passage domain (denormalised for query perf)
-  level         Int                             // Passage level (denormalised for query perf)
   started_at    DateTime @map("started_at")
   completed_at  DateTime @map("completed_at")
 

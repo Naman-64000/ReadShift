@@ -27,9 +27,13 @@ export interface UserPreferences {
   font_size_px: 16 | 18 | 21;
   domains: Domain[];
   mcq_timer: number;
-  highlight_intensity: "subtle" | "moderate" | "intense";
+  highlight_intensity: "none" | "subtle" | "moderate" | "intense";
   auto_center_scroll: boolean;
   laap_enabled: boolean;
+  skim_enabled: boolean;
+  mcqs_enabled: boolean;
+  progress_bar_enabled: boolean;
+  timer_enabled: boolean;
 }
 
 /** Combined user + prefs shape returned by GET /api/users/me */

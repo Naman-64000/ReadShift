@@ -5,14 +5,10 @@
 import { prisma } from "../lib/prisma.js";
 
 export const passageService = {
-  /**
-   * Checks how many passages are available for a given configuration.
-   */
-  async getPoolDepth(domain: string, level: number) {
+  async getPoolDepth(domain: string) {
     return prisma.passage.count({
       where: {
         domain: domain as any,
-        level,
         flagged: false,
       },
     });

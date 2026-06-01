@@ -16,7 +16,9 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 router.post("/", requireAuth, calibrationsController.submitCalibration);
-router.get("/", requireAuth, calibrationsController.listCalibrations);
+router.get("/passage", requireAuth, calibrationsController.getCalibrationPassage);
 router.get("/latest", requireAuth, calibrationsController.getLatestCalibration);
+router.get("/", requireAuth, calibrationsController.listCalibrations);
+
 
 export default router;

@@ -14,7 +14,8 @@ export const dashboardService = {
         take: 100,
         select: {
           actual_wpm: true, comprehension: true, domain: true,
-          level: true, completed_at: true, elapsed_ms: true,
+          completed_at: true, elapsed_ms: true,
+          _count: { select: { responses: true } },
         },
       }),
       prisma.calibration.findMany({
@@ -24,7 +25,7 @@ export const dashboardService = {
       }),
       prisma.user.findUnique({
         where: { id: userId },
-        select: { level: true, streak_days: true },
+        select: { streak_days: true },
       }),
     ]);
 
@@ -41,21 +42,22 @@ export const dashboardService = {
       ? Math.round(calibrations.reduce((s, x) => s + x.wpm, 0) / calibrations.length)
       : current_wpm;
 
-    // Avg comprehension as 0-100
-    const avg_comprehension = sessions.length
-      ? Math.round((sessions.reduce((s, x) => s + x.comprehension, 0) / (sessions.length * 3)) * 100)
+    // Avg comprehension as 0-100 (Issue #13)
+    const totalQuestions = sessions.reduce((s, x) => s + ((x as any)._count?.responses || 3), 0);
+    const avg_comprehension = totalQuestions > 0
+      ? Math.round((sessions.reduce((s, x) => s + x.comprehension, 0) / totalQuestions) * 100)
       : 0;
 
     const streak_days = user?.streak_days ?? 0;
-    const current_level = (user?.level ?? 1) as 1 | 2 | 3 | 4;
 
     // Domain accuracy
     const domainMap = new Map<string, { correct: number; total: number }>();
     sessions.forEach((s) => {
+      const qCount = (s as any)._count?.responses || 3;
       const cur = domainMap.get(s.domain) ?? { correct: 0, total: 0 };
       domainMap.set(s.domain, {
         correct: cur.correct + s.comprehension,
-        total: cur.total + 3,
+        total: cur.total + qCount,
       });
     });
     const domain_accuracy = Array.from(domainMap.entries()).map(([domain, v]) => ({
@@ -70,18 +72,20 @@ export const dashboardService = {
       .map((d) => d.domain);
 
     // Recommended WPM
-    // If user is newly calibrated or just recalibrated, start from baseline.
-    const allGood = last3.length === 3 && last3.every((s) => s.comprehension >= 2);
-    const latest_session_date = sessions[0]?.completed_at?.getTime() ?? 0;
-    const latest_calib_date = calibrations[0]?.recorded_at?.getTime() ?? 0;
-    const just_recalibrated = latest_calib_date > latest_session_date;
+    // The recommendation should depend solely on the most recent calibration speed (+20 WPM, capping at 500) if one exists.
+    // Otherwise, fallback to session speed or a default of 220.
+    const most_recent_calib = calibrations[0]?.wpm;
+    let raw_recommended = 220;
 
-    const raw_recommended = (sessions.length === 0 || just_recalibrated)
-      ? (calibrations.length > 0 ? Math.round((baseline_wpm + 20) / 10) * 10 : 220)
-      : allGood
+    if (most_recent_calib !== undefined) {
+      raw_recommended = Math.round((most_recent_calib + 20) / 10) * 10;
+    } else if (sessions.length > 0) {
+      const allGood = last3.length === 3 && last3.every((s) => s.comprehension >= 2);
+      raw_recommended = allGood
         ? Math.round((current_wpm + 25) / 10) * 10
         : Math.round(current_wpm / 10) * 10;
-        
+    }
+
     const recommended_wpm = Math.min(500, raw_recommended);
 
     // Recommended domain = weakest domain if any, otherwise random from preferred
@@ -92,15 +96,19 @@ export const dashboardService = {
       : null;
 
     // WPM trend for chart (last 30 sessions)
-    const wpm_trend = [...sessions].slice(0, 30).reverse().map((s) => ({
-      date: s.completed_at.toISOString(),
-      wpm: s.actual_wpm,
-      comprehension: s.comprehension,
-    }));
+    const wpm_trend = [...sessions].slice(0, 30).reverse().map((s) => {
+      const qCount = (s as any)._count?.responses || 3;
+      const accuracy = Math.round((s.comprehension / qCount) * 100);
+      return {
+        date: s.completed_at.toISOString(),
+        wpm: s.actual_wpm,
+        comprehension: s.comprehension,
+        accuracy,
+      };
+    });
 
-    // ── ADVANCED PERFORMANCE DIAGNOSTICS & HEATMAPS ──────────────────────────────
+    // ── ADVANCED PERFORMANCE DIAGNOSTICS ──────────────────────────────────────
     const DOMAINS = ["business", "science", "history", "abstract", "social"];
-    const LEVELS = [1, 2, 3, 4];
 
     // 1. Overall WPM average
     const overallAvgWpm = sessions.length
@@ -137,8 +145,9 @@ export const dashboardService = {
       const rangeSessions = sessions.filter(
         (s) => s.actual_wpm >= range.min && s.actual_wpm <= range.max
       );
-      const avg_accuracy = rangeSessions.length
-        ? Math.round((rangeSessions.reduce((s, x) => s + x.comprehension, 0) / (rangeSessions.length * 3)) * 100)
+      const rangeQuestions = rangeSessions.reduce((s, x) => s + ((x as any)._count?.responses || 3), 0);
+      const avg_accuracy = rangeQuestions > 0
+        ? Math.round((rangeSessions.reduce((s, x) => s + x.comprehension, 0) / rangeQuestions) * 100)
         : 0;
       return {
         wpm_range: range.label,
@@ -198,32 +207,29 @@ export const dashboardService = {
       };
     }
 
-    // 5. Domain vs Level Performance Heatmap
-    const heatmap_data: { domain: string; level: number; avg_accuracy: number; avg_wpm: number; session_count: number; }[] = [];
+    // 5. Domain Performance Matrix (per-domain, no level dimension)
+    const heatmap_data: { domain: string; avg_accuracy: number; avg_wpm: number; session_count: number; }[] = [];
 
     DOMAINS.forEach((dom) => {
-      LEVELS.forEach((lvl) => {
-        const cellSessions = sessions.filter((s) => s.domain === dom && s.level === lvl);
-        const avg_accuracy = cellSessions.length
-          ? Math.round((cellSessions.reduce((s, x) => s + x.comprehension, 0) / (cellSessions.length * 3)) * 100)
-          : 0;
-        const avg_wpm = cellSessions.length
-          ? Math.round(cellSessions.reduce((s, x) => s + x.actual_wpm, 0) / cellSessions.length)
-          : 0;
-        heatmap_data.push({
-          domain: dom,
-          level: lvl,
-          avg_accuracy,
-          avg_wpm,
-          session_count: cellSessions.length,
-        });
+      const domSessions = sessions.filter((s) => s.domain === dom);
+      const domQuestions = domSessions.reduce((s, x) => s + ((x as any)._count?.responses || 3), 0);
+      const avg_accuracy = domQuestions > 0
+        ? Math.round((domSessions.reduce((s, x) => s + x.comprehension, 0) / domQuestions) * 100)
+        : 0;
+      const avg_wpm = domSessions.length
+        ? Math.round(domSessions.reduce((s, x) => s + x.actual_wpm, 0) / domSessions.length)
+        : 0;
+      heatmap_data.push({
+        domain: dom,
+        avg_accuracy,
+        avg_wpm,
+        session_count: domSessions.length,
       });
     });
 
     return {
       current_wpm,
       baseline_wpm,
-      current_level,
       streak_days,
       sessions_completed: total,
       avg_comprehension,

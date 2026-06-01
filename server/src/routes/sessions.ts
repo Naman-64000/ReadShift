@@ -20,8 +20,11 @@ import { sessionRateLimit } from "../middleware/rateLimiter.js";
 const router = Router();
 
 router.post("/start", requireAuth, sessionsController.startSession);
+router.post("/mark-seen", requireAuth, sessionsController.markPassageSeen);
+router.get("/domain-status", requireAuth, sessionsController.getDomainStatus);
 router.post("/", requireAuth, sessionRateLimit, sessionsController.submitSession);
 router.get("/", requireAuth, sessionsController.listSessions);
+router.get("/history", requireAuth, sessionsController.getUserHistory);
 router.get("/:id", requireAuth, sessionsController.getSession);
 
 export default router;

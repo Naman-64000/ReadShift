@@ -5,17 +5,6 @@
 
 import type { Domain, ColWidth } from "@/types";
 
-// ── WPM Levels ────────────────────────────────────────────────
-export const WPM_LEVELS: Record<
-  1 | 2 | 3 | 4,
-  { label: string; min: number; max: number; description: string }
-> = {
-  1: { label: "Beginner",     min: 150, max: 250, description: "Building foundation" },
-  2: { label: "Intermediate", min: 250, max: 350, description: "Developing fluency" },
-  3: { label: "Advanced",     min: 350, max: 450, description: "Competitive pace" },
-  4: { label: "Expert",       min: 450, max: 500, description: "Elite reading speed" },
-};
-
 // ── WPM Slider ────────────────────────────────────────────────
 export const MIN_WPM = 150;
 export const MAX_WPM = 500;
@@ -56,7 +45,7 @@ export const COL_WIDTHS: { value: ColWidth; label: string; description: string; 
 export const PASSAGE_WORD_MIN = 250;
 export const PASSAGE_WORD_MAX = 350;
 export const CALIBRATION_WORD_COUNT = 100;
-export const PASSAGE_POOL_TARGET = 50; // per domain-level combo
+export const PASSAGE_POOL_TARGET = 50; // per domain
 
 // ── Session Phases ────────────────────────────────────────────
 export const SESSION_PHASES = ["idle", "config", "reading", "mcq", "results"] as const;
@@ -75,8 +64,6 @@ export const WEAK_DOMAIN_ACCURACY_THRESHOLD = 60; // percent
 // ── Streaks ───────────────────────────────────────────────────
 export const STREAK_MILESTONE = 7; // days — triggers celebration UI
 
-// ── Adaptive Difficulty ───────────────────────────────────────
-/** Sessions needed with ≥ COMPREHENSION_PASS_THRESHOLD to level up */
-export const LEVEL_UP_CONSECUTIVE_SESSIONS = 3;
+// ── Adaptive Pacing ──────────────────────────────────────────────
 /** WPM bump when recommending next session */
 export const WPM_RECOMMENDATION_INCREMENT = 25;

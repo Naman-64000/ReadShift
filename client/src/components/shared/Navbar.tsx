@@ -47,7 +47,7 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
-      <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
+      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-2">
           <span className="text-xl font-black text-white">Read<span className="text-indigo-400">Shift</span></span>
         </Link>
@@ -111,7 +111,7 @@ export default function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="sm:hidden absolute top-14 inset-x-0 bg-slate-950/95 backdrop-blur-xl border-b border-white/5 overflow-hidden shadow-2xl"
+            className="sm:hidden absolute top-16 inset-x-0 bg-slate-950/95 backdrop-blur-xl border-b border-white/5 overflow-hidden shadow-2xl"
           >
             <div className="flex flex-col px-4 py-4 gap-2">
               {navLinks.map(({ to, label }) => {

@@ -1,7 +1,7 @@
 /**
  * client/src/App.tsx
  */
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/shared/Navbar";
@@ -27,6 +27,9 @@ export default function App() {
   const fetchProfile = useUserStore((s) => s.fetchProfile);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const isReadingOrMCQ = location.pathname.startsWith("/session/reading") || location.pathname.startsWith("/session/mcq");
+  const isAuthPage = location.pathname === "/auth";
 
   useEffect(() => {
     // 1. Check for mock dev session first
@@ -69,28 +72,36 @@ export default function App() {
   if (loading) return <LoadingSpinner fullPage />;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {!isFullscreen && session && <Navbar />}
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+      <div className="flex-grow">
+        {!isFullscreen && session && <Navbar />}
 
-      <Routes>
-        {/* Public */}
-        <Route path="/auth" element={!session ? <AuthScreen /> : <Navigate to="/dashboard" />} />
-        
-        {/* Protected */}
-        <Route path="/dashboard"       element={session ? <DashboardScreen /> : <Navigate to="/auth" />} />
-        <Route path="/onboarding"      element={session ? <OnboardingScreen /> : <Navigate to="/auth" />} />
-        <Route path="/calibration"     element={session ? <CalibrationScreen /> : <Navigate to="/auth" />} />
-        <Route path="/session/config"  element={session ? <SessionConfigScreen /> : <Navigate to="/auth" />} />
-        <Route path="/session/reading" element={session ? <ReadingScreen /> : <Navigate to="/auth" />} />
-        <Route path="/session/mcq"     element={session ? <MCQScreen /> : <Navigate to="/auth" />} />
-        <Route path="/session/results" element={session ? <ResultsScreen /> : <Navigate to="/auth" />} />
-        <Route path="/settings"        element={session ? <SettingsScreen /> : <Navigate to="/auth" />} />
-        <Route path="/admin"           element={session ? <AdminScreen /> : <Navigate to="/auth" />} />
-        <Route path="/drills/metronome" element={session ? <MetronomeDrillScreen /> : <Navigate to="/auth" />} />
+        <Routes>
+          {/* Public */}
+          <Route path="/auth" element={!session ? <AuthScreen /> : <Navigate to="/dashboard" />} />
+          
+          {/* Protected */}
+          <Route path="/dashboard"       element={session ? <DashboardScreen /> : <Navigate to="/auth" />} />
+          <Route path="/onboarding"      element={session ? <OnboardingScreen /> : <Navigate to="/auth" />} />
+          <Route path="/calibration"     element={session ? <CalibrationScreen /> : <Navigate to="/auth" />} />
+          <Route path="/session/config"  element={session ? <SessionConfigScreen /> : <Navigate to="/auth" />} />
+          <Route path="/session/reading" element={session ? <ReadingScreen /> : <Navigate to="/auth" />} />
+          <Route path="/session/mcq"     element={session ? <MCQScreen /> : <Navigate to="/auth" />} />
+          <Route path="/session/results" element={session ? <ResultsScreen /> : <Navigate to="/auth" />} />
+          <Route path="/settings"        element={session ? <SettingsScreen /> : <Navigate to="/auth" />} />
+          <Route path="/admin"           element={session ? <AdminScreen /> : <Navigate to="/auth" />} />
+          <Route path="/drills/metronome" element={session ? <MetronomeDrillScreen /> : <Navigate to="/auth" />} />
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </div>
+
+      {!isFullscreen && !isReadingOrMCQ && !isAuthPage && (
+        <footer className="w-full text-center py-6 px-4 border-t border-white/5 text-[11px] text-slate-500 max-w-6xl mx-auto leading-relaxed mt-auto shrink-0">
+          ReadShift is an independent speed-reading training platform focused on increasing reading speed, focus, and comprehension. All practice passages and cognitive drills are independently created and styled for high-density, analytical skill development.
+        </footer>
+      )}
 
       <Toast />
     </div>

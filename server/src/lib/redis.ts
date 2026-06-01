@@ -79,6 +79,13 @@ redis.on("end", () => {
  * Call this **once** during server boot, before starting workers.
  */
 export async function verifyRedisConnection(): Promise<boolean> {
+  // If already connected or connecting, count as successful startup check
+  if (redis.status === "ready" || redis.status === "connect" || redis.status === "connecting") {
+    isRedisAvailable = true;
+    logger.info("[Redis] ✅ Startup connection verified (already active/connecting).");
+    return true;
+  }
+
   try {
     await Promise.race([
       redis.connect(),
@@ -90,6 +97,12 @@ export async function verifyRedisConnection(): Promise<boolean> {
     logger.info("[Redis] ✅ Startup connection verified.");
     return true;
   } catch (err) {
+    // If a connection attempt was triggered in parallel during boot, count as success
+    if (err instanceof Error && err.message.includes("already connecting/connected")) {
+      isRedisAvailable = true;
+      logger.info("[Redis] ✅ Startup connection verified (already in progress).");
+      return true;
+    }
     isRedisAvailable = false;
     const message = err instanceof Error ? err.message : String(err);
     logger.warn(`[Redis] ⚠️  Not reachable at startup — entering fallback mode. Reason: ${message}`);

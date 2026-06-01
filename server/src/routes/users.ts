@@ -18,6 +18,7 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
+router.get("/exists", usersController.checkEmailExists);
 router.get("/me", requireAuth, usersController.getMe);
 router.post("/", requireAuth, usersController.createUser);
 router.patch("/me/preferences", requireAuth, usersController.updatePreferences);

@@ -19,5 +19,6 @@ const router = Router();
 
 router.get("/", requireAuth, passagesController.listPassages);
 router.post("/:id/flag", requireAuth, passagesController.flagPassage);
+router.post("/:id/rate", requireAuth, passagesController.ratePassage);
 
 export default router;

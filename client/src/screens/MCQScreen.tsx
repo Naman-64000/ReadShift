@@ -82,7 +82,7 @@ export default function MCQScreen() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           handleAnswer(null); // Auto-submit on expire
-          return mcqTimerSeconds;
+          return 0;
         }
         return prev - 1;
       });
@@ -108,14 +108,14 @@ export default function MCQScreen() {
 
   if (isSubmitting) {
     return (
-      <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center">
+      <div className="min-h-[calc(100vh-4rem)] pt-20 flex items-center justify-center">
         <LoadingSpinner size="lg" label="Saving your session…" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-20 sm:pt-24 flex items-start justify-center px-4 py-8">
+    <div className="min-h-[calc(100vh-4rem)] pt-20 sm:pt-24 flex items-start justify-center px-4 py-8">
       <div className={cn("w-full transition-all duration-500", showPassage ? "max-w-7xl" : "max-w-2xl")}>
         
         {/* Header split or centered */}

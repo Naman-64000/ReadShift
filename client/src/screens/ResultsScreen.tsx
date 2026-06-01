@@ -1,8 +1,4 @@
-/**
- * client/src/screens/ResultsScreen.tsx
- */
-
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useSessionStore } from "@/store";
@@ -11,11 +7,28 @@ import ResultCard from "@/components/session/ResultCard";
 import Button from "@/components/shared/Button";
 import { msToTime, comprehensionLabel, formatDomain } from "@/lib/utils";
 import type { Question } from "@/types";
+import { apiClient } from "@/lib/apiClient";
 
 export default function ResultsScreen() {
   const navigate = useNavigate();
   const { result, passage, phase, responses, resetSession } = useSessionStore();
   const { invalidate } = useDashboardStore();
+
+  const [ratingSubmitted, setRatingSubmitted] = useState<"up" | "down" | null>(null);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
+  const handleRatePassage = async (rating: "up" | "down") => {
+    if (ratingSubmitted || isSubmittingRating || !passage) return;
+    setIsSubmittingRating(true);
+    try {
+      await apiClient.post(`/passages/${passage.passage.id}/rate`, { rating });
+      setRatingSubmitted(rating);
+    } catch (err) {
+      // Fail silently
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
 
   useEffect(() => {
     if (phase !== "results" || !result) navigate("/session/config", { replace: true });
@@ -28,7 +41,7 @@ export default function ResultsScreen() {
 
   if (!result || !passage) return null;
 
-  const { session, actual_wpm, comprehension, level_up } = result;
+  const { session, actual_wpm, comprehension } = result;
 
   const handleNewSession = () => {
     resetSession();
@@ -36,20 +49,9 @@ export default function ResultsScreen() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-20 px-4 py-12">
+    <div className="min-h-[calc(100vh-4rem)] pt-20 px-4 py-12">
       <div className="max-w-2xl mx-auto space-y-10">
         {/* Level up celebration */}
-        {level_up && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-center py-4 rounded-2xl border border-amber-500/40 bg-amber-500/10"
-          >
-            <div className="text-4xl">🎉</div>
-            <p className="text-amber-300 font-bold text-lg mt-2">Level Up!</p>
-            <p className="text-amber-200/60 text-sm">You've advanced to the next difficulty level.</p>
-          </motion.div>
-        )}
 
         {/* Stats row */}
         <motion.div
@@ -79,17 +81,14 @@ export default function ResultsScreen() {
             Question Review
           </h2>
           {passage.questions.map((q, i) => {
-            const resp = responses[i];
+            const resp = responses.find((r) => r.question_id === q.id);
             if (!resp) return null;
+            const dbResp = result.responses.find((r) => r.question_id === q.id);
             const questionWithAnswer = {
               ...q,
-              // correct_index is returned in the session result responses
-              correct_index: result.responses[i]?.is_correct
-                ? resp.selected_index
-                : ([0, 1, 2, 3].find(
-                    (n) => n !== resp.selected_index
-                  ) as 0 | 1 | 2 | 3) ?? 0,
-            } as Question & { correct_index: 0 | 1 | 2 | 3 };
+              correct_index: dbResp?.correct_index ?? 0,
+              explanations: dbResp?.explanations,
+            } as Question & { correct_index: 0 | 1 | 2 | 3; explanations?: string[] };
             return (
               <ResultCard
                 key={q.id}
@@ -101,6 +100,53 @@ export default function ResultsScreen() {
             );
           })}
         </div>
+
+        {/* Inline Passage Feedback Loop */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-indigo-950/20 p-6 space-y-4"
+        >
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">📚 Evaluate Passage Rigour</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Help us maintain absolute reading difficulty and question accuracy standards. How was the linguistic difficulty and comprehension flow of this passage?
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            {ratingSubmitted === null ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1 hover:border-emerald-500/40 hover:bg-emerald-500/5 text-slate-300 hover:text-emerald-400 justify-center font-bold"
+                  onClick={() => handleRatePassage("up")}
+                  isLoading={isSubmittingRating}
+                >
+                  👍 Accurate & Rigorous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1 hover:border-rose-500/40 hover:bg-rose-500/5 text-slate-300 hover:text-rose-400 justify-center font-bold"
+                  onClick={() => handleRatePassage("down")}
+                  isLoading={isSubmittingRating}
+                >
+                  👎 Low Quality / Flawed
+                </Button>
+              </>
+            ) : ratingSubmitted === "up" ? (
+              <div className="w-full text-center py-2.5 px-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 animate-fadeIn">
+                <span>✅ Thank you! We've recorded your positive rating for this passage.</span>
+              </div>
+            ) : (
+              <div className="w-full text-center py-2.5 px-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-bold flex items-center justify-center gap-1.5 animate-fadeIn">
+                <span>⚠️ Thanks for flagging — we'll review this passage.</span>
+              </div>
+            )}
+          </div>
+        </motion.div>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">

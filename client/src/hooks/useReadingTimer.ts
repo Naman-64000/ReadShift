@@ -43,6 +43,7 @@ export function useReadingTimer({
 
   // Refs hold mutable state that doesn't need to trigger re-renders
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startWallTimeRef = useRef<number>(0);   // wall clock when timer started/resumed
   const elapsedAtPauseRef = useRef<number>(0);  // elapsed ms accumulated before pause
   const chunkRef = useRef(0);                    // current chunk (avoids stale closure)
@@ -64,6 +65,22 @@ export function useReadingTimer({
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    if (tickerRef.current !== null) {
+      clearInterval(tickerRef.current);
+      tickerRef.current = null;
+    }
+  }, []);
+
+  const startTicker = useCallback(() => {
+    if (tickerRef.current !== null) {
+      clearInterval(tickerRef.current);
+    }
+    tickerRef.current = setInterval(() => {
+      if (!pausedRef.current && startWallTimeRef.current > 0) {
+        const currentElapsed = elapsedAtPauseRef.current + (performance.now() - startWallTimeRef.current);
+        setElapsedMs(Math.round(currentElapsed));
+      }
+    }, 100);
   }, []);
 
   const tick = useCallback((expectedTickTime: number, chunkIdx: number) => {
@@ -71,17 +88,20 @@ export function useReadingTimer({
 
     const now = performance.now();
     const drift = now - expectedTickTime;             // positive = we're late
-    const transitionExtra = extraDelayRef.current[chunkIdx + 1] ?? 0;
+    const nextChunk = chunkIdx + 1;
+    const transitionExtra = extraDelayRef.current[nextChunk] ?? 0;
     
-    // Resolve dynamic LAAP or static interval
-    const baseInterval = customIntervalsRef.current && customIntervalsRef.current[chunkIdx] !== undefined
-      ? customIntervalsRef.current[chunkIdx]
+    // Resolve dynamic LAAP or static interval for the upcoming nextChunk
+    const baseInterval = customIntervalsRef.current && customIntervalsRef.current[nextChunk] !== undefined
+      ? customIntervalsRef.current[nextChunk]
       : intervalRef.current;
 
-    const targetInterval = baseInterval + transitionExtra;
+    // First 3 chunks warm-up gets +400ms duration (chunkIdx 0, 1, 2)
+    const warmUpExtra = (nextChunk < 3) ? 400 : 0;
+
+    const targetInterval = baseInterval + transitionExtra + warmUpExtra;
     const nextInterval = Math.max(0, targetInterval - drift);
 
-    const nextChunk = chunkIdx + 1;
     chunkRef.current = nextChunk;
     setCurrentChunkIndex(nextChunk);
 
@@ -118,16 +138,19 @@ export function useReadingTimer({
     const now = performance.now();
     startWallTimeRef.current = now;
 
-    const firstInterval = customIntervalsRef.current && customIntervalsRef.current[0] !== undefined
+    startTicker();
+
+    // First chunk (chunk 0) gets +400ms warm-up pacing padding
+    const firstInterval = (customIntervalsRef.current && customIntervalsRef.current[0] !== undefined
       ? customIntervalsRef.current[0]
-      : intervalRef.current;
+      : intervalRef.current) + 400;
 
     // First tick after one interval
     timerRef.current = setTimeout(
       () => tick(now + firstInterval, 0),
       firstInterval
     );
-  }, [isRunning, tick]);
+  }, [isRunning, tick, startTicker]);
 
   const pause = useCallback(() => {
     if (!isRunning || pausedRef.current) return;
@@ -135,7 +158,9 @@ export function useReadingTimer({
     setIsPaused(true);
     clearTimer();
     // Accumulate elapsed time up to this point
-    elapsedAtPauseRef.current += performance.now() - startWallTimeRef.current;
+    const exactElapsed = elapsedAtPauseRef.current + (performance.now() - startWallTimeRef.current);
+    elapsedAtPauseRef.current = exactElapsed;
+    setElapsedMs(Math.round(exactElapsed));
   }, [isRunning, clearTimer]);
 
   const resume = useCallback(() => {
@@ -145,16 +170,19 @@ export function useReadingTimer({
     const now = performance.now();
     startWallTimeRef.current = now;
 
-    const resumeInterval = customIntervalsRef.current && customIntervalsRef.current[chunkRef.current] !== undefined
+    startTicker();
+
+    const warmUpExtra = (chunkRef.current < 3) ? 400 : 0;
+    const resumeInterval = (customIntervalsRef.current && customIntervalsRef.current[chunkRef.current] !== undefined
       ? customIntervalsRef.current[chunkRef.current]
-      : intervalRef.current;
+      : intervalRef.current) + warmUpExtra;
 
     // Continue from current chunk
     timerRef.current = setTimeout(
       () => tick(now + resumeInterval, chunkRef.current),
       resumeInterval
     );
-  }, [isRunning, tick]);
+  }, [isRunning, tick, startTicker]);
 
   const reset = useCallback(() => {
     clearTimer();

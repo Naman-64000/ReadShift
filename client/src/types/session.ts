@@ -11,6 +11,8 @@ export interface SessionResponse {
   selected_index: 0 | 1 | 2 | 3;
   is_correct: boolean;
   time_taken_ms: number;
+  correct_index?: 0 | 1 | 2 | 3;
+  explanations?: string[];
 }
 
 export interface Session {
@@ -25,7 +27,6 @@ export interface Session {
   fading_used: boolean;
   guide_used: boolean;
   domain: string;
-  level: number;
   started_at: string;
   completed_at: string;
 }
@@ -39,6 +40,7 @@ export interface SessionSubmitPayload {
   chunk_size: number;
   fading_used: boolean;
   guide_used: boolean;
+  timezone_offset: number;
   responses: Array<{
     question_id: string;
     selected_index: 0 | 1 | 2 | 3;
@@ -52,5 +54,4 @@ export interface SessionResult {
   responses: SessionResponse[];
   actual_wpm: number;
   comprehension: number;
-  level_up: boolean; // Whether this session triggered a level promotion
 }

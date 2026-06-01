@@ -32,6 +32,19 @@ export default function SessionConfigScreen() {
     (location.state?.drillDomain as Domain) || "random"
   );
   const [isStarting, setIsStarting] = useState(false);
+  const [domainCounts, setDomainCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const res = await apiClient.get<{ data: Record<string, number> }>("/sessions/domain-status");
+        setDomainCounts(res.data.data);
+      } catch (err) {
+        console.error("Failed to fetch domain statuses:", err);
+      }
+    };
+    void fetchCounts();
+  }, []);
 
   // Background pre-fetch on mount (debounced)
   useEffect(() => {
@@ -72,14 +85,12 @@ export default function SessionConfigScreen() {
   const handleStart = async () => {
     setIsStarting(true);
     setError(null);
-    const drillLevel = location.state?.drillLevel as number | undefined;
     await startSession({
       target_wpm: targetWpm,
       chunk_size: chunkSize,
       fading_enabled: fadingEnabled,
       guide_enabled: guideEnabled,
       domain: selectedDomain === "random" ? undefined : selectedDomain,
-      level: drillLevel,
     });
     setIsStarting(false);
     // Only navigate if no error
@@ -87,8 +98,14 @@ export default function SessionConfigScreen() {
     if (!storeError) navigate("/session/reading");
   };
 
+  const allowedDomains = prefs?.domains ?? [];
+  const drillDomain = location.state?.drillDomain as string | undefined;
+  const filteredDomains = allowedDomains.length > 0
+    ? DOMAINS.filter((d) => allowedDomains.includes(d.value) || d.value === drillDomain)
+    : DOMAINS;
+
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] pt-14 flex items-center justify-center px-4 py-4">
+    <div className="min-h-[calc(100vh-4rem)] pt-20 flex items-center justify-center px-4 py-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -112,14 +129,14 @@ export default function SessionConfigScreen() {
           />
         </div>
 
-        {/* Domain — compact horizontal scroll strip */}
-        <div className="space-y-2">
-          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-0.5">Content Domain</h2>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+        {/* Domain */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider px-0.5">Content Domain</h2>
+          <div className="grid grid-cols-3 gap-2.5">
             <button
               onClick={() => setSelectedDomain("random")}
               className={cn(
-                "shrink-0 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap",
+                "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5",
                 selectedDomain === "random"
                   ? "border-indigo-500 bg-indigo-500/15 text-white"
                   : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
@@ -127,56 +144,77 @@ export default function SessionConfigScreen() {
             >
               🎲 Surprise Me
             </button>
-            {DOMAINS.map((d) => (
-              <button
-                key={d.value}
-                onClick={() => setSelectedDomain(d.value)}
-                className={cn(
-                  "shrink-0 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap",
-                  selectedDomain === d.value
-                    ? "border-indigo-500 bg-indigo-500/15 text-white"
-                    : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
-                )}
-              >
-                {d.emoji} {d.label}
-              </button>
-            ))}
+            {filteredDomains.map((d) => {
+              const count = domainCounts[d.value];
+              const isExhausted = count === 0;
+              return (
+                <button
+                  key={d.value}
+                  title={isExhausted ? "All new passages read. Selecting this will recycle a previously read passage." : undefined}
+                  onClick={() => setSelectedDomain(d.value)}
+                  className={cn(
+                    "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 select-none",
+                    selectedDomain === d.value
+                      ? "border-indigo-500 bg-indigo-500/15 text-white"
+                      : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+                  )}
+                >
+                  <span>{d.emoji}</span>
+                  <span className="hidden sm:inline">{d.label}</span>
+                  <span className="sm:hidden">{d.label.slice(0, 5)}..</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Active Settings — compact pill strip */}
-        <div className="flex items-center justify-between gap-2 px-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center text-[11px] font-semibold text-slate-400 bg-white/5 border border-white/8 px-2.5 py-1 rounded-full">
+        {/* Active Settings */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider px-0.5">Active Settings</h2>
+            <button
+              onClick={() => navigate("/settings")}
+              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              ⚙️ Edit
+            </button>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap px-0.5">
+            {/* Chunk size (always active) */}
+            <span className="inline-flex items-center text-[11px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">
               {chunkSize}w chunks
             </span>
+
+            {/* Guide line */}
             <span className={cn(
-              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
-              guideEnabled ? "text-slate-300 bg-white/5 border-white/8" : "text-slate-600 bg-transparent border-white/5"
+              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
+              guideEnabled
+                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                : "text-slate-600 bg-transparent border-white/5"
             )}>
               📏 {guideEnabled ? "Guide on" : "Guide off"}
             </span>
+
+            {/* Text Fading */}
             <span className={cn(
-              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
-              fadingEnabled ? "text-slate-300 bg-white/5 border-white/8" : "text-slate-600 bg-transparent border-white/5"
+              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
+              fadingEnabled
+                ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20"
+                : "text-slate-600 bg-transparent border-white/5"
             )}>
               🌫 {fadingEnabled ? "Fading on" : "Fading off"}
             </span>
+
+            {/* Pacing Mode */}
             <span className={cn(
-              "inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border",
+              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
               (prefs?.laap_enabled ?? true)
                 ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
                 : "text-slate-600 bg-transparent border-white/5"
             )}>
-              {(prefs?.laap_enabled ?? true) ? "⚡ Adaptive" : "— Linear"}
+              {(prefs?.laap_enabled ?? true) ? "⚡ Adaption" : "— Linear"}
             </span>
           </div>
-          <button
-            onClick={() => navigate("/settings")}
-            className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors shrink-0"
-          >
-            ⚙️ Edit
-          </button>
         </div>
 
         {/* Error */}

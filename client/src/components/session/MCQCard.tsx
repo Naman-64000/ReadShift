@@ -28,19 +28,33 @@ export default function MCQCard({
   isTimed,
 }: MCQCardProps) {
   const [selected, setSelected] = useState<number | null>(selectedOption);
+  const [shuffledOptions, setShuffledOptions] = useState<Array<{ text: string; originalIndex: number }>>([]);
 
   useEffect(() => {
     setSelected(selectedOption);
   }, [selectedOption, question.id]);
 
-  const handleSelect = (idx: number) => {
+  useEffect(() => {
+    const mapped = question.options.map((text, index) => ({ text, originalIndex: index }));
+    
+    // Mathematically robust, completely random Fisher-Yates shuffle
+    const shuffled = [...mapped];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    setShuffledOptions(shuffled);
+  }, [question.id, question.options]);
+
+  const handleSelect = (originalIdx: number) => {
     if (isTimed && selected !== null) return;
-    setSelected(idx);
+    setSelected(originalIdx);
     
     if (isTimed) {
-      setTimeout(() => onAnswer(idx as 0 | 1 | 2 | 3), 350);
+      setTimeout(() => onAnswer(originalIdx as 0 | 1 | 2 | 3), 350);
     } else {
-      onAnswer(idx as 0 | 1 | 2 | 3);
+      onAnswer(originalIdx as 0 | 1 | 2 | 3);
     }
   };
 
@@ -68,30 +82,34 @@ export default function MCQCard({
 
       {/* Options */}
       <div className="space-y-3">
-        {question.options.map((opt, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSelect(idx)}
-            disabled={isTimed && selected !== null}
-            className={cn(
-              "w-full text-left flex items-start gap-4 rounded-xl border px-5 py-4",
-              "transition-all duration-150 text-sm font-medium",
-              selected === idx
-                ? "border-indigo-500 bg-indigo-500/15 text-white"
-                : (isTimed && selected !== null)
-                ? "border-white/8 text-slate-500 cursor-default"
-                : "border-white/12 bg-white/4 text-slate-200 hover:border-indigo-500/50 hover:bg-indigo-500/8 hover:text-white cursor-pointer"
-            )}
-          >
-            <span className={cn(
-              "shrink-0 flex items-center justify-center h-6 w-6 rounded-md text-xs font-bold",
-              selected === idx ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
-            )}>
-              {OPTIONS[idx]}
-            </span>
-            <span className="pt-0.5">{opt}</span>
-          </button>
-        ))}
+        {shuffledOptions.map((optObj, idx) => {
+          const isSelected = selected === optObj.originalIndex;
+
+          return (
+            <button
+              key={idx}
+              onClick={() => handleSelect(optObj.originalIndex)}
+              disabled={isTimed && selected !== null}
+              className={cn(
+                "w-full text-left flex items-start gap-4 rounded-xl border px-5 py-4",
+                "transition-all duration-150 text-sm font-medium",
+                isSelected
+                  ? "border-indigo-500 bg-indigo-500/15 text-white"
+                  : (isTimed && selected !== null)
+                  ? "border-white/8 text-slate-500 cursor-default"
+                  : "border-white/12 bg-white/4 text-slate-200 hover:border-indigo-500/50 hover:bg-indigo-500/8 hover:text-white cursor-pointer"
+              )}
+            >
+              <span className={cn(
+                "shrink-0 flex items-center justify-center h-6 w-6 rounded-md text-xs font-bold",
+                isSelected ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
+              )}>
+                {OPTIONS[idx]}
+              </span>
+              <span className="pt-0.5">{optObj.text}</span>
+            </button>
+          );
+        })}
       </div>
     </motion.div>
   );

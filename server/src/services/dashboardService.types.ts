@@ -3,7 +3,7 @@
  * Type re-export so dashboardService.ts stays clean.
  */
 
-export interface WpmDataPoint { date: string; wpm: number; comprehension: number; }
+export interface WpmDataPoint { date: string; wpm: number; comprehension: number; accuracy: number; }
 export interface DomainAccuracy { domain: string; accuracy: number; sessions: number; }
 
 export interface WpmSlowdown {
@@ -20,7 +20,6 @@ export interface WpmComprehensionCorrelation {
 
 export interface HeatmapCell {
   domain: string;
-  level: number;
   avg_accuracy: number;
   avg_wpm: number;
   session_count: number;
@@ -35,7 +34,6 @@ export interface SweetSpot {
 export interface DashboardSummary {
   current_wpm: number;
   baseline_wpm: number;
-  current_level: 1 | 2 | 3 | 4;
   streak_days: number;
   sessions_completed: number;
   avg_comprehension: number;

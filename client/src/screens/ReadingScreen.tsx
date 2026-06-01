@@ -2,8 +2,9 @@
  * client/src/screens/ReadingScreen.tsx
  */
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiClient } from "@/lib/apiClient";
 import { useSession } from "@/hooks/useSession";
 import { useReadingTimer } from "@/hooks/useReadingTimer";
 import ReadingEngine from "@/components/session/ReadingEngine";
@@ -22,12 +23,26 @@ const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
 
 export default function ReadingScreen() {
   const navigate = useNavigate();
-  const { passage, config, chunks, intervalMs, customChunkIntervalsMs, extraDelayMsByNextChunk, isLaapActive, totalChunks, markReadingDone, resetSession, phase } = useSession();
+  const { passage, config, chunks, intervalMs, customChunkIntervalsMs, extraDelayMsByNextChunk, isLaapActive, totalChunks, markReadingDone, resetSession, phase, submitSession } = useSession();
   const { setFullscreen } = useUIStore();
   const { preferences, fetchProfile } = useUserStore();
   const [isReady, setIsReady] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
+  const [submittingDirect, setSubmittingDirect] = useState(false);
+
+  const handleFinishWithoutMCQs = async () => {
+    setSubmittingDirect(true);
+    markReadingDone(elapsedMs);
+    try {
+      await submitSession();
+      navigate("/session/results");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingDirect(false);
+    }
+  };
 
   // 🧠 15-Second Structural Skimming Module States & Lifecycle
   const [isSkimming, setIsSkimming] = useState(false);
@@ -35,6 +50,17 @@ export default function ReadingScreen() {
   const skimmingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSkimmingRef = useRef(false);
   const isSkimmingPausedRef = useRef(false);
+
+  const hasMarkedSeenRef = useRef(false);
+  const markPassageSeenInDb = useCallback(async () => {
+    if (hasMarkedSeenRef.current || !passage?.passage?.id) return;
+    hasMarkedSeenRef.current = true;
+    try {
+      await apiClient.post("/sessions/mark-seen", { passage_id: passage.passage.id });
+    } catch (err) {
+      console.error("Failed to mark passage as seen:", err);
+    }
+  }, [passage]);
 
   const skimmingParagraphs = useMemo(() => {
     if (!passage) return [];
@@ -46,6 +72,7 @@ export default function ReadingScreen() {
   }, [isSkimming]);
 
   const handleStartSkimming = () => {
+    void markPassageSeenInDb();
     setIsSkimming(true);
     setIsReady(true);
     setSkimmingTimeLeft(15);
@@ -75,8 +102,22 @@ export default function ReadingScreen() {
   };
 
   useEffect(() => {
-    if (!preferences) fetchProfile();
+    if (!preferences) {
+      fetchProfile();
+      return;
+    }
   }, [preferences, fetchProfile]);
+
+  const handleRestart = () => {
+    setIsFinished(false);
+    reset(); // Reset reading timer
+    const isSkimOn = preferences?.skim_enabled ?? true;
+    if (isSkimOn) {
+      handleStartSkimming();
+    } else {
+      handleBegin();
+    }
+  };
 
   // Clean up skimming timer on unmount and handle visibility/blur
   useEffect(() => {
@@ -129,7 +170,7 @@ export default function ReadingScreen() {
 
   const handleComplete = (elapsed: number) => {
     markReadingDone(elapsed);
-    navigate("/session/mcq");
+    setIsFinished(true);
   };
 
   const { currentChunkIndex, elapsedMs, isPaused, isRunning, start, pause, resume, reset } =
@@ -141,17 +182,59 @@ export default function ReadingScreen() {
       onComplete: handleComplete,
     });
 
+  // Synchronously reset all active timers (paced and skimming) on unmount to prevent background leaks
+  useEffect(() => {
+    return () => {
+      reset();
+      if (skimmingTimerRef.current) {
+        clearInterval(skimmingTimerRef.current);
+      }
+    };
+  }, [reset]);
+
   const handleBegin = () => {
+    void markPassageSeenInDb();
     if (!isRunning && totalChunks > 0) start();
     setIsReady(true);
   };
+
+  const [showExitWarning, setShowExitWarning] = useState(false);
 
   const handleBackToConfig = () => {
     resetSession();
     navigate("/session/config");
   };
 
-  if (!passage || !config) return null;
+  const triggerExitWarning = () => {
+    if (isRunning && !isPaused) {
+      pause();
+    }
+    if (isSkimmingRef.current) {
+      isSkimmingPausedRef.current = true;
+    }
+    setShowExitWarning(true);
+  };
+
+  const cancelExitWarning = () => {
+    setShowExitWarning(false);
+    if (!isPaused && isReady && !isFinished) {
+      resume();
+    }
+    if (isSkimmingRef.current) {
+      isSkimmingPausedRef.current = false;
+    }
+  };
+
+  const handleStartSession = () => {
+    const isSkimOn = preferences?.skim_enabled ?? true;
+    if (isSkimOn) {
+      handleStartSkimming();
+    } else {
+      handleBegin();
+    }
+  };
+
+  if (!passage || !config || !preferences) return null;
 
   const progress = readingProgress(currentChunkIndex, totalChunks);
 
@@ -167,9 +250,7 @@ export default function ReadingScreen() {
             <button
               onClick={() => {
                 setReviewMode(false);
-                setIsFinished(false);
-                setIsReady(false);
-                reset(); // Reset reading timer so they can restart paced reading if they want
+                handleRestart();
               }}
               className="text-xs font-semibold px-3 py-1 rounded-lg bg-white/8 text-slate-300 hover:text-white transition-colors"
             >
@@ -189,16 +270,27 @@ export default function ReadingScreen() {
               ))}
             </motion.div>
             <div className="mt-8">
-              <Button
-                size="lg"
-                className="shadow-2xl shadow-indigo-500/20 animate-pulse"
-                onClick={() => {
-                  markReadingDone(elapsedMs);
-                  navigate("/session/mcq");
-                }}
-              >
-                Start Comprehension Check →
-              </Button>
+              {preferences?.mcqs_enabled ?? true ? (
+                <Button
+                  size="lg"
+                  className="shadow-2xl shadow-indigo-500/20 animate-pulse"
+                  onClick={() => {
+                    markReadingDone(elapsedMs);
+                    navigate("/session/mcq");
+                  }}
+                >
+                  Start Comprehension Check →
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  className="shadow-2xl shadow-indigo-500/20 animate-pulse bg-indigo-600 hover:bg-indigo-500"
+                  isLoading={submittingDirect}
+                  onClick={handleFinishWithoutMCQs}
+                >
+                  View Results & Finish →
+                </Button>
+              )}
             </div>
           </div>
         </>
@@ -272,15 +364,28 @@ export default function ReadingScreen() {
             <>
               {/* Top bar */}
               <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
-                <ProgressBar percent={progress} />
+                {(preferences?.progress_bar_enabled ?? true) && <ProgressBar percent={progress} />}
                 <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
                   <button
-                    onClick={handleBackToConfig}
-                    className="text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors bg-white/8 text-slate-300 hover:text-white"
+                    onClick={triggerExitWarning}
+                    className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold"
                   >
-                    ← Back
+                    <svg
+                      className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>Back</span>
                   </button>
-                  <span className="text-xs text-slate-500 tabular-nums">{msToTime(elapsedMs)}</span>
+                  {(preferences?.timer_enabled ?? true) ? (
+                    <span className="text-xs text-slate-500 tabular-nums">{msToTime(elapsedMs)}</span>
+                  ) : (
+                    <span />
+                  )}
                   <div className="flex items-center gap-2">
                     {isLaapActive && (
                       <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
@@ -296,14 +401,28 @@ export default function ReadingScreen() {
                     onClick={isPaused ? resume : pause}
                     disabled={!isReady}
                     className={cn(
-                      "text-xs font-semibold px-2 sm:px-3 py-1 rounded-lg transition-colors whitespace-nowrap",
+                      "flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold transition-all duration-300 shadow-md",
                       isPaused
-                        ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
-                        : "bg-white/8 text-slate-400 hover:text-white",
+                        ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/35 hover:border-indigo-500/50 shadow-indigo-500/10 animate-pulse scale-[1.03]"
+                        : "bg-slate-900/60 border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20",
                       !isReady && "opacity-50 cursor-not-allowed"
                     )}
                   >
-                    {isPaused ? "▶ Resume" : "⏸ Pause"}
+                    {isPaused ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 fill-current text-indigo-400" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <span>Resume</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5 fill-current text-slate-400" viewBox="0 0 24 24">
+                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                        <span>Pause</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -340,17 +459,10 @@ export default function ReadingScreen() {
                   <div className="text-center space-y-4 px-4 max-w-md">
                     <div className="text-4xl">📖</div>
                     <p className="text-white font-semibold">Ready to Begin?</p>
-                    <p className="text-sm text-slate-400">Click when you are ready and the timer will start.</p>
+                    <p className="text-sm text-slate-400">Click start when you are ready to begin the session.</p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full mt-2">
                       <Button variant="ghost" onClick={handleBackToConfig} className="w-full sm:w-auto">Back</Button>
-                      <Button 
-                        variant="secondary" 
-                        onClick={handleStartSkimming} 
-                        className="w-full sm:flex-1 font-bold border border-indigo-500/20 text-indigo-400 bg-indigo-500/5 hover:bg-indigo-500/10 whitespace-nowrap"
-                      >
-                        🧠 Skim First (15s)
-                      </Button>
-                      <Button onClick={handleBegin} className="w-full sm:flex-1">Start Reading</Button>
+                      <Button onClick={handleStartSession} className="w-full sm:flex-1">Start Reading</Button>
                     </div>
                   </div>
                 </div>
@@ -401,15 +513,25 @@ export default function ReadingScreen() {
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
-              <Button
-                onClick={() => {
-                  markReadingDone(elapsedMs);
-                  navigate("/session/mcq");
-                }}
-                className="w-full justify-center shadow-lg shadow-indigo-500/20 font-bold"
-              >
-                Start Comprehension Check →
-              </Button>
+              {preferences?.mcqs_enabled ?? true ? (
+                <Button
+                  onClick={() => {
+                    markReadingDone(elapsedMs);
+                    navigate("/session/mcq");
+                  }}
+                  className="w-full justify-center shadow-lg shadow-indigo-500/20 font-bold"
+                >
+                  Start Comprehension Check →
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleFinishWithoutMCQs}
+                  isLoading={submittingDirect}
+                  className="w-full justify-center shadow-lg shadow-indigo-500/20 font-bold bg-indigo-600 hover:bg-indigo-500"
+                >
+                  View Results & Finish →
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => setReviewMode(true)}
@@ -419,14 +541,42 @@ export default function ReadingScreen() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => {
-                  setIsFinished(false);
-                  setIsReady(false);
-                  reset(); // Restart paced reading
-                }}
+                onClick={handleRestart}
                 className="w-full justify-center text-slate-400 hover:text-white"
               >
                 🔄 Restart Paced Reading
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Exit warning modal */}
+      {showExitWarning && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#0d1527] border border-white/10 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-2xl"
+          >
+            <div className="text-3xl">⚠️</div>
+            <h2 className="text-xl font-black text-white">Abort Reading Session?</h2>
+            <p className="text-xs text-slate-400 leading-relaxed text-left sm:text-center">
+              Are you sure you want to exit early? This will end your active practice and count as an incomplete session in your progress history.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="secondary"
+                className="flex-1 text-slate-300 hover:text-white"
+                onClick={cancelExitWarning}
+              >
+                Keep Reading
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-500 hover:shadow-red-500/10 text-white"
+                onClick={handleBackToConfig}
+              >
+                Yes, Exit
               </Button>
             </div>
           </motion.div>
