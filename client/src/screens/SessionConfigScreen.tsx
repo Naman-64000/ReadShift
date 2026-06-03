@@ -20,7 +20,7 @@ export default function SessionConfigScreen() {
   const { startSession, prefetchPassage, error, setError, lastSelectedWpm, setLastSelectedWpm } = useSessionStore();
 
   const [targetWpm, setTargetWpm] = useState(
-    lastSelectedWpm ?? summary?.recommended_wpm ?? 220
+    lastSelectedWpm ?? summary?.recommended_wpm ?? 200
   );
   const [calibratedWpm, setCalibratedWpm] = useState<number | null>(null);
   
@@ -71,12 +71,12 @@ export default function SessionConfigScreen() {
         const baseline = res.data.data?.average_wpm ?? null;
         if (baseline) {
           setCalibratedWpm(baseline);
-          setTargetWpm(Math.min(500, Math.round((baseline + 20) / 10) * 10));
+          setTargetWpm(Math.max(100, Math.min(300, Math.round((baseline + 20) / 10) * 10)));
         } else {
-          setTargetWpm(220);
+          setTargetWpm(200);
         }
       } catch {
-        setTargetWpm(220);
+        setTargetWpm(200);
       }
     };
     void loadCalibration();
@@ -113,7 +113,7 @@ export default function SessionConfigScreen() {
       >
         {/* Header */}
         <div className="text-center space-y-1">
-          <h1 className="text-3xl font-black text-white">Configure Session</h1>
+          <h1 className="text-3xl font-black text-[rgb(var(--text))]">Configure Session</h1>
           <p className="text-slate-400 text-sm">Set your pace and preferences for this reading session.</p>
         </div>
 
@@ -131,15 +131,15 @@ export default function SessionConfigScreen() {
 
         {/* Domain */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider px-0.5">Content Domain</h2>
+          <h2 className="text-sm font-bold text-[rgb(var(--text))] uppercase tracking-wider px-0.5">Content Domain</h2>
           <div className="grid grid-cols-3 gap-2.5">
             <button
               onClick={() => setSelectedDomain("random")}
               className={cn(
                 "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5",
                 selectedDomain === "random"
-                  ? "border-indigo-500 bg-indigo-500/15 text-white"
-                  : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+                  ? "border-indigo-500 bg-indigo-500/15 text-[rgb(var(--text))]"
+                  : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]"
               )}
             >
               🎲 Surprise Me
@@ -155,8 +155,8 @@ export default function SessionConfigScreen() {
                   className={cn(
                     "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 select-none",
                     selectedDomain === d.value
-                      ? "border-indigo-500 bg-indigo-500/15 text-white"
-                      : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+                      ? "border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-white"
+                      : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]"
                   )}
                 >
                   <span>{d.emoji}</span>
@@ -165,55 +165,6 @@ export default function SessionConfigScreen() {
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* Active Settings */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider px-0.5">Active Settings</h2>
-            <button
-              onClick={() => navigate("/settings")}
-              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              ⚙️ Edit
-            </button>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap px-0.5">
-            {/* Chunk size (always active) */}
-            <span className="inline-flex items-center text-[11px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">
-              {chunkSize}w chunks
-            </span>
-
-            {/* Guide line */}
-            <span className={cn(
-              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
-              guideEnabled
-                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                : "text-slate-600 bg-transparent border-white/5"
-            )}>
-              📏 {guideEnabled ? "Guide on" : "Guide off"}
-            </span>
-
-            {/* Text Fading */}
-            <span className={cn(
-              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
-              fadingEnabled
-                ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20"
-                : "text-slate-600 bg-transparent border-white/5"
-            )}>
-              🌫 {fadingEnabled ? "Fading on" : "Fading off"}
-            </span>
-
-            {/* Pacing Mode */}
-            <span className={cn(
-              "inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all",
-              (prefs?.laap_enabled ?? true)
-                ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
-                : "text-slate-600 bg-transparent border-white/5"
-            )}>
-              {(prefs?.laap_enabled ?? true) ? "⚡ Adaption" : "— Linear"}
-            </span>
           </div>
         </div>
 
@@ -246,4 +197,3 @@ export default function SessionConfigScreen() {
     </div>
   );
 }
-

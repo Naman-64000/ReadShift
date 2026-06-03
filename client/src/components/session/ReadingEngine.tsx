@@ -128,8 +128,12 @@ export default function ReadingEngine({
             <span
               ref={isActive ? activeChunkRef : null}
               className={cn(
-                "relative inline transition-colors duration-500",
-                isActive && highlightIntensity !== "none" ? "text-white" : "text-slate-300"
+                "relative inline transition-colors duration-500 reading-chunk",
+                isActive ? "reading-chunk-active" : "reading-chunk-inactive",
+                isActive && highlightIntensity !== "none" ? "text-white" : "text-slate-300",
+                isActive && highlightIntensity === "subtle" && "reading-chunk-subtle",
+                isActive && highlightIntensity === "moderate" && "reading-chunk-moderate",
+                isActive && highlightIntensity === "intense" && "reading-chunk-intense"
               )}
             >
               {/* Highlight box behind active chunk */}

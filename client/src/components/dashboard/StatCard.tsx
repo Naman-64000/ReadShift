@@ -15,7 +15,7 @@ interface StatCardProps {
 const trendIcons = { up: "↑", down: "↓", neutral: "→" };
 const trendColours = { up: "text-emerald-400", down: "text-red-400", neutral: "text-slate-500" };
 
-export default function StatCard({ label, value, subtitle, trend, accent = "text-white" }: StatCardProps) {
+export default function StatCard({ label, value, subtitle, trend, accent = "text-[rgb(var(--text))]" }: StatCardProps) {
   return (
     <motion.div
       whileHover={{ y: -2 }}

@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { AppError } from "../types/index.js";
 import crypto from "crypto";
 import { staticVault } from "../data/staticVault.js";
+import { buildPassageTitle } from "./passageQualityService.js";
 
 function weightedRandomPick<T>(items: T[], getWeight: (item: T) => number): T | null {
   if (!items.length) return null;
@@ -181,6 +182,7 @@ export const sessionService = {
               generated_by: "static_vault",
               source: "static_vault",
               status: "ready",
+              title: buildPassageTitle(vp.topic_key),
               hash,
               questions: {
                 create: vp.questions.map((q) => ({

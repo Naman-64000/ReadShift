@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useUserStore } from "@/store";
 import Button from "@/components/shared/Button";
@@ -20,6 +20,7 @@ export default function SettingsScreen() {
   const [draft, setDraft] = useState<UserPreferences | null>(null);
   const [hoveredPreview, setHoveredPreview] = useState<string | null>(null);
   const [allowHover, setAllowHover] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
 
   useEffect(() => {
     let initialCoords: { x: number; y: number } | null = null;
@@ -81,6 +82,7 @@ export default function SettingsScreen() {
       mcqs_enabled: draft.mcqs_enabled ?? true,
       progress_bar_enabled: draft.progress_bar_enabled ?? true,
       timer_enabled: draft.timer_enabled ?? true,
+      roadmaps_enabled: draft.roadmaps_enabled ?? true,
     });
     setSaving(false);
   }, [draft, preferences, updatePreferences]);
@@ -124,7 +126,8 @@ export default function SettingsScreen() {
     draft?.chunk_size === 3 &&
     (draft?.skim_enabled ?? true) === true &&
     (draft?.progress_bar_enabled ?? true) === true &&
-    (draft?.timer_enabled ?? true) === true;
+    (draft?.timer_enabled ?? true) === true &&
+    (draft?.roadmaps_enabled ?? true) === true;
 
   const isTestModeActive =
     draft?.guide_enabled === false &&
@@ -135,7 +138,8 @@ export default function SettingsScreen() {
     draft?.chunk_size === 4 &&
     draft?.skim_enabled === false &&
     draft?.progress_bar_enabled === false &&
-    draft?.timer_enabled === false;
+    draft?.timer_enabled === false &&
+    (draft?.roadmaps_enabled ?? true) === false;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pt-20 px-4 py-10 pb-20">
@@ -146,7 +150,7 @@ export default function SettingsScreen() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white">Settings</h1>
+            <h1 className="text-3xl font-black text-[rgb(var(--text))]">Settings</h1>
             <p className="text-sm text-slate-500 mt-1">
               {isDevUser ? "Development Mode User" : user.email}
             </p>
@@ -178,8 +182,8 @@ export default function SettingsScreen() {
                   className={cn(
                     "rounded-xl border px-4 py-3 text-sm font-medium text-left transition-all",
                     selected
-                      ? "border-indigo-500 bg-indigo-500/15 text-white"
-                      : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-white"
+                      ? "border-indigo-500 bg-indigo-500/15 text-[rgb(var(--text))]"
+                      : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-[rgb(var(--text))]"
                   )}
                 >
                   <span className="mr-2 opacity-80">{d.emoji}</span>
@@ -209,6 +213,7 @@ export default function SettingsScreen() {
                   skim_enabled: true,
                   progress_bar_enabled: true,
                   timer_enabled: true,
+                  roadmaps_enabled: true,
                 });
               }}
               className={cn(
@@ -241,7 +246,8 @@ export default function SettingsScreen() {
                     "✓ Auto-Center Focus",
                     "✓ Adaptive Pacing",
                     "✓ HUD Progress Bar",
-                    "✓ HUD Pacing Timer"
+                    "✓ HUD Pacing Timer",
+                    "✓ Paragraph Roadmaps"
                   ].map((feat) => (
                     <span key={feat} className="text-[9px] font-semibold text-emerald-400/90 flex items-center gap-1">
                       {feat}
@@ -263,6 +269,7 @@ export default function SettingsScreen() {
                   skim_enabled: false,
                   progress_bar_enabled: false,
                   timer_enabled: false,
+                  roadmaps_enabled: false,
                 });
               }}
               className={cn(
@@ -295,7 +302,8 @@ export default function SettingsScreen() {
                     "✗ Normal Manual Scroll",
                     "✗ No Speed Assists",
                     "✗ No HUD Progress Bar",
-                    "✗ No HUD Pacing Timer"
+                    "✗ No HUD Pacing Timer",
+                    "✗ No Roadmaps"
                   ].map((feat) => (
                     <span key={feat} className="text-[9px] font-semibold text-slate-400 flex items-center gap-1">
                       {feat}
@@ -305,6 +313,25 @@ export default function SettingsScreen() {
               </div>
             </button>
           </div>
+        </section>
+
+        {/* Method Manual Card */}
+        <section className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden group hover:border-indigo-500/30 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-300" />
+          <div className="space-y-1">
+            <h3 className="text-sm font-black text-white flex items-center gap-1.5">
+              <span>📖</span> Cognitive Training Manual
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium max-w-sm sm:max-w-md">
+              Learn the exact 16-point scientific reading method and discover how ReadShift's visual pacing assists automate these cognitive habits.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowManualModal(true)}
+            className="px-4 py-2 shrink-0 rounded-xl text-xs font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all cursor-pointer shadow-lg shadow-indigo-500/5"
+          >
+            Open Manual
+          </button>
         </section>
 
         {/* Visual Prefs */}
@@ -614,6 +641,31 @@ export default function SettingsScreen() {
               </button>
             </div>
 
+            {/* Paragraph Roadmaps Toggle */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 cursor-help"
+              onMouseEnter={() => allowHover && setHoveredPreview("roadmaps")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "roadmaps" && <RoadmapsPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Paragraph Roadmaps</p>
+                <p className="text-[10px] text-slate-500">Show a 5-second keyword flow summary overlay when completing a paragraph</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ roadmaps_enabled: !(draft.roadmaps_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.roadmaps_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.roadmaps_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
             {/* Comprehension Checks (MCQs) Toggle Row */}
             <div 
               className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
@@ -746,6 +798,190 @@ export default function SettingsScreen() {
           </Button>
         </section>
       </motion.div>
+
+      {/* Cognitive Training Manual Modal Overlay */}
+      <AnimatePresence>
+        {showManualModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 md:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-[#0b101c]/95 border border-indigo-500/20 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative"
+            >
+              {/* Top Accent Line */}
+              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
+              
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-slate-950/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📖</span>
+                  <div>
+                    <h2 className="text-base font-black text-white">ReadShift Cognitive Manual</h2>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Scientific Reading & Pacing Framework</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowManualModal(false)}
+                  className="h-8 w-8 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto p-6 md:p-8 space-y-6 flex-1 scrollbar-thin scrollbar-thumb-indigo-500/25">
+                <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400">The Core Framework</h3>
+                  <p className="text-[11px] text-slate-300 leading-relaxed italic">
+                    "Don't read passages just to finish them; read them to extract the purpose of each paragraph, build a passage map, understand the structure, and critically engage with the author's arguments."
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Point 1 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">1</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">First Understand WHY You Are Reading</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Do not read merely to absorb passive knowledge. Read specifically for CAT/GMAT level prep. Focus on improving deep comprehension, interpretation skills under pacing, getting comfortable with dense unfamiliar topics, and mastering global and local reading comprehension questions.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Provides highly-dense academic passages in business, humanities, and sciences paired with GMAT-calibrated question blueprints (e.g. main idea, inference, tone, unstated assumptions) to match target exam conditions perfectly.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 2 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">2</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Quality Over Quantity</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Avoid asking how many articles you should read. Focus entirely on how well you are reading them. One highly focused, deeply analyzed passage is infinitely better than rushing through several articles without critical engagement.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Rather than encouraging endless scrolling, ReadShift saves your comprehensive session history in a clean reading log to monitor your deliberate progress, comfort thresholds, and error rates.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 3 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">3</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Ignore Generic "Speed Reading"</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Do NOT work strictly on speed. Work on understanding, active comprehension, and deep interpretation. Speed is a natural, secondary byproduct of ocular habits and mental mapping comfort—it will improve automatically later.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Our Linguistic-Aware Adaptive Pacing (LAAP) does not force an artificial, flat speed. It distributes highlight durations dynamically by evaluating word complexity, syllable weights, and sentence transitions, keeping you at a highly receptive, natural rhythm.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 4 & 5 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">4</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">The Two-Round Pacing Routine</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Break your session into two distinct phases: Round 1 (Basic Comprehension), where you follow the passage structure and paragraph flows, and Round 2 (Deep Engagement), where you unpack dense sentences, check vocabulary, and dissect reasoning arguments. Spend roughly 25-30 minutes per passage set.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Round 1 is guided strictly by our pacing highlighting line. Round 2 is fully automated during the post-reading check, where you receive extensive explanations detailing why correct and incorrect distractors are structured as logical traps.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 6 & 8 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">5</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Create a Passage Map & Compress Summaries</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          After every single paragraph, ask: "Why did the author include this paragraph?" instead of "What did I just read?" Write a highly-compressed 3-5 word summary of the paragraph's core purpose to build a mental structure map.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Paragraph Roadmaps automate this training! At the end of every paragraph, ReadShift pauses pacing silently for 5 seconds to overlay a high-retention 3-4 word keyword transition summary, teaching your brain structural mapping.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 7 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">6</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Find the "Hero Sentence"</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Not all lines are equally important. Locate the single "Hero Sentence" that carries the paragraph's primary logical purpose (often the first structural claim sentence), and ignore excessive descriptive details during the first pass.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Structural Skimming (15s Warmup) dims the background and highlights only paragraph-initial sentences before pacing begins, training your eyes to instantly latch onto "Hero Sentences."
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 9 & 10 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">7</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Track Connections & Don't Get Stuck</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Always analyze how each paragraph connects back to the previous one. If a sentence becomes dense and confusing, do not stall or re-read endlessly. Keep moving forward, holding the macro-structure together in your mind.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> 1.5s Regression Fading physically fades words after they are paced. Cognitive eye-tracking research shows visual regressions (backtracking) waste up to 15% of reading speed. Fading stops this habit, keeping you anchored to the global picture.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Point 11 to 15 */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">8</span>
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-black text-white">Practice Skepticism & Challenge the Author</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Do NOT blindly agree with the text. Practice reasoning skepticism: What unstated assumptions is the author relying on? What evidence is missing? What would weaken or strengthen their claim? Mentally debate the author.
+                        </p>
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
+                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Our comprehension MCQs explicitly integrate GMAT distractor traps (Out of Scope, Extreme Language, True but Irrelevant, Direct Contradiction, Misapplied Relationship), training your mind to actively eliminate logical traps and spot logical flaws.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end items-center px-6 py-4 border-t border-white/5 bg-slate-950/40 gap-3">
+                <Button
+                  onClick={() => setShowManualModal(false)}
+                  className="px-5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2 cursor-pointer shadow-lg shadow-indigo-500/10"
+                >
+                  Understood, Close
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1195,6 +1431,45 @@ function HUDTimerPreview() {
       </div>
       <p className="text-[9px] text-slate-500 text-center mt-2.5 leading-relaxed">
         Displays your exact active reading time to monitor visual speed bursts precisely.
+      </p>
+    </motion.div>
+  );
+}
+
+function RoadmapsPreview() {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-64 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+    >
+      <div className="text-[10px] text-slate-400 mb-3.5 font-bold uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
+        <span>🗺️</span> Paragraph Roadmap
+      </div>
+      
+      <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-3">
+        <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+          End of Paragraph 1
+        </div>
+        
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-300 font-medium">
+            <span className="text-indigo-400">Hypothesis</span>
+            <span className="text-slate-500">→</span>
+            <span className="text-indigo-400">Methodology</span>
+            <span className="text-slate-500">→</span>
+            <span className="text-indigo-400">Control Group</span>
+          </div>
+          <motion.div 
+            animate={{ width: ["0%", "100%"] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            className="h-1 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded"
+          />
+        </div>
+      </div>
+      
+      <p className="text-[9px] text-slate-500 text-center mt-3 leading-relaxed">
+        Pauses paced highlighting silently for 5 seconds to overlay a high-retention structural map.
       </p>
     </motion.div>
   );

@@ -33,6 +33,7 @@ async function main() {
       data: {
         quality_score: quality.quality_score,
         status: quality.status === "ready" ? "ready" : "draft",
+        title: quality.title,
         topic_key: quality.topic_key,
       },
     });

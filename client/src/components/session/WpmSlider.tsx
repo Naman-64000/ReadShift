@@ -25,9 +25,8 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
 
   // Descriptive speed label based on WPM range
   const getSpeedLabel = (wpm: number) => {
-    if (wpm < 200) return { label: "Beginner Pace",  desc: "Building your reading foundation" };
-    if (wpm < 300) return { label: "Comfortable Pace", desc: "Solid everyday reading speed" };
-    if (wpm < 400) return { label: "Advanced Pace",  desc: "Competitive reading speed" };
+    if (wpm < 180) return { label: "Comfortable Pace", desc: "Solid everyday reading speed" };
+    if (wpm < 250) return { label: "Advanced Pace",  desc: "Competitive reading speed" };
     return { label: "Elite Pace",     desc: "High-performance reading" };
   };
   const { label: speedLabel, desc: speedDesc } = getSpeedLabel(value);
@@ -36,7 +35,7 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
     <div className={cn("space-y-5", className)}>
       {/* Current WPM display */}
       <div className="text-center">
-        <div className="text-6xl font-black text-white tabular-nums tracking-tight">
+        <div className="text-6xl font-black text-[rgb(var(--text))] tabular-nums tracking-tight">
           {value}
         </div>
         <div className="text-base font-semibold text-indigo-400 mt-1">WPM</div>
@@ -69,7 +68,7 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
 
         {/* Level markers */}
         <div className="flex justify-between mt-2 px-1 text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
-          {[150, 200, 250, 300, 350, 400, 450, 500].map((w) => (
+          {[100, 125, 150, 175, 200, 225, 250, 275, 300].map((w) => (
             <span key={w}>{w}</span>
           ))}
         </div>

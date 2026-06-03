@@ -34,6 +34,7 @@ export interface UserPreferences {
   mcqs_enabled: boolean;
   progress_bar_enabled: boolean;
   timer_enabled: boolean;
+  roadmaps_enabled?: boolean;
 }
 
 /** Combined user + prefs shape returned by GET /api/users/me */

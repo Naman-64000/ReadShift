@@ -73,9 +73,9 @@ export const dashboardService = {
 
     // Recommended WPM
     // The recommendation should depend solely on the most recent calibration speed (+20 WPM, capping at 500) if one exists.
-    // Otherwise, fallback to session speed or a default of 220.
+    // Otherwise, fallback to session speed or a default of 350.
     const most_recent_calib = calibrations[0]?.wpm;
-    let raw_recommended = 220;
+    let raw_recommended = 200;
 
     if (most_recent_calib !== undefined) {
       raw_recommended = Math.round((most_recent_calib + 20) / 10) * 10;
@@ -86,7 +86,7 @@ export const dashboardService = {
         : Math.round(current_wpm / 10) * 10;
     }
 
-    const recommended_wpm = Math.min(500, raw_recommended);
+    const recommended_wpm = Math.max(100, Math.min(300, raw_recommended));
 
     // Recommended domain = weakest domain if any, otherwise random from preferred
     const recommended_domain = weak_domains.length

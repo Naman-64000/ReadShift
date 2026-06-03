@@ -89,6 +89,7 @@ model UserPreferences {
   mcqs_enabled   Boolean  @default(true)      @map("mcqs_enabled") // enable/disable MCQs after reading session
   progress_bar_enabled Boolean  @default(true)      @map("progress_bar_enabled") // show/hide HUD progress bar
   timer_enabled  Boolean  @default(true)      @map("timer_enabled")        // show/hide HUD timer
+  roadmaps_enabled Boolean  @default(true)      @map("roadmaps_enabled")     // paragraph roadmaps enabled
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -111,10 +112,12 @@ model Passage {
   source       String  @default("seed")
   status       PassageStatus @default(ready)
   quality_score Int?   @map("quality_score")
+  title        String  @map("title")
   topic_key    String? @map("topic_key")
   hash         String? @unique
   flagged      Boolean @default(false)       // true = excluded from pool pending review
   flag_count   Int     @default(0) @map("flag_count")
+  paragraph_roadmaps String[] @default([]) @map("paragraph_roadmaps")
   created_at   DateTime @default(now()) @map("created_at")
 
   // Relations

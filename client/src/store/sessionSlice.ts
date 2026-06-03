@@ -55,6 +55,8 @@ type StartSessionResponse =
       domain: string;
       generated_by: string;
       flagged: boolean;
+      title: string;
+      paragraph_roadmaps?: string[];
       created_at: string;
       questions: PassageWithQuestions["questions"];
     };

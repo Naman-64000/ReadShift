@@ -29,6 +29,8 @@ export interface Passage {
   domain: Domain;
   generated_by: string;
   flagged: boolean;
+  title: string;
+  paragraph_roadmaps?: string[];
   created_at: string;
 }
 

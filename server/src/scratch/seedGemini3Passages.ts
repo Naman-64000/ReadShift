@@ -141,8 +141,10 @@ async function main() {
           generated_by: "gemini-3.1-flash-lite (gemini 3)",
           source: "gemini 3",
           quality_score: quality.quality_score,
+          title: quality.title,
           status: quality.status === "ready" ? "ready" : "draft",
           topic_key: quality.topic_key,
+          paragraph_roadmaps: passageData.paragraph_roadmaps,
         },
       });
 

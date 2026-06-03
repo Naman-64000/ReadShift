@@ -28,6 +28,7 @@ export default function ReadingScreen() {
   const { preferences, fetchProfile } = useUserStore();
   const [isReady, setIsReady] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const [showFinishedOverlay, setShowFinishedOverlay] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [submittingDirect, setSubmittingDirect] = useState(false);
 
@@ -110,6 +111,7 @@ export default function ReadingScreen() {
 
   const handleRestart = () => {
     setIsFinished(false);
+    setShowFinishedOverlay(false);
     reset(); // Reset reading timer
     const isSkimOn = preferences?.skim_enabled ?? true;
     if (isSkimOn) {
@@ -170,7 +172,17 @@ export default function ReadingScreen() {
 
   const handleComplete = (elapsed: number) => {
     markReadingDone(elapsed);
-    setIsFinished(true);
+    
+    const totalParagraphs = passage?.passage?.paragraph_roadmaps?.length ?? 0;
+    const finalRoadmap = totalParagraphs > 0 ? passage?.passage?.paragraph_roadmaps?.[totalParagraphs - 1] : null;
+    
+    if (roadmapsEnabledForPassage && finalRoadmap) {
+      isFinalRoadmapRef.current = true;
+      setIsRoadmapPaused(true);
+      setActiveRoadmap(finalRoadmap);
+    } else {
+      setIsFinished(true);
+    }
   };
 
   const { currentChunkIndex, elapsedMs, isPaused, isRunning, start, pause, resume, reset } =
@@ -199,6 +211,53 @@ export default function ReadingScreen() {
   };
 
   const [showExitWarning, setShowExitWarning] = useState(false);
+
+  const [activeRoadmap, setActiveRoadmap] = useState<string | null>(null);
+  const [isRoadmapPaused, setIsRoadmapPaused] = useState(false);
+  const lastCheckedChunkIndexRef = useRef(-1);
+  const isFinalRoadmapRef = useRef(false);
+  const hasParagraphRoadmaps = (passage?.passage?.paragraph_roadmaps?.length ?? 0) > 0;
+  const roadmapsEnabledForPassage = Boolean(preferences?.roadmaps_enabled && hasParagraphRoadmaps);
+
+  // Handle automatic dismissal of paragraph roadmap after exactly 5 seconds
+  useEffect(() => {
+    if (!activeRoadmap) return;
+    
+    const timer = setTimeout(() => {
+      setActiveRoadmap(null);
+      setIsRoadmapPaused(false);
+      
+      if (isFinalRoadmapRef.current) {
+        isFinalRoadmapRef.current = false;
+        setIsFinished(true);
+      } else {
+        resume();
+      }
+    }, 10000);
+    
+    return () => clearTimeout(timer);
+  }, [activeRoadmap, resume]);
+
+  // Monitor chunk advances to trigger Paragraph Roadmap pause & overlay
+  useEffect(() => {
+    if (!roadmapsEnabledForPassage || !isReady || isFinished || isSkimming || isRoadmapPaused) return;
+    if (isPaused && !isRoadmapPaused) return;
+    
+    if (currentChunkIndex === lastCheckedChunkIndexRef.current) return;
+    
+    const currentChunk = chunks[currentChunkIndex];
+    if (currentChunk && currentChunk.isParagraphStart && currentChunk.paragraphIndex > 0) {
+      const prevParagraphIdx = currentChunk.paragraphIndex - 1;
+      const roadmap = passage?.passage?.paragraph_roadmaps?.[prevParagraphIdx];
+      
+      if (roadmap) {
+        lastCheckedChunkIndexRef.current = currentChunkIndex;
+        pause();
+        setIsRoadmapPaused(true);
+        setActiveRoadmap(roadmap);
+      }
+    }
+  }, [currentChunkIndex, chunks, passage, preferences, roadmapsEnabledForPassage, isReady, isFinished, isPaused, isRoadmapPaused, isSkimming, pause]);
 
   const handleBackToConfig = () => {
     resetSession();
@@ -443,7 +502,7 @@ export default function ReadingScreen() {
               </div>
 
               {/* Done Button — only appears after 50% progress */}
-              {progress >= 50 && !isRunning && (
+              {progress >= 50 && !isRunning && !isFinished && (
                 <div className="fixed bottom-10 inset-x-0 flex justify-center z-40">
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                     <Button size="lg" className="shadow-2xl shadow-indigo-500/20" onClick={() => handleComplete(elapsedMs)}>
@@ -453,9 +512,23 @@ export default function ReadingScreen() {
                 </div>
               )}
 
+              {/* Next Button — appears when paced reading ends but Finished Overlay is not yet triggered */}
+              {isFinished && !showFinishedOverlay && (
+                <div className="fixed bottom-10 inset-x-0 flex justify-center z-40">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <Button size="lg" className="shadow-2xl shadow-indigo-500/20 px-8 font-bold flex items-center gap-2" onClick={() => setShowFinishedOverlay(true)}>
+                      Next
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                    </Button>
+                  </motion.div>
+                </div>
+              )}
+
               {/* Paused overlay */}
               {!isReady && (
-                <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50 ready-to-begin-overlay">
                   <div className="text-center space-y-4 px-4 max-w-md">
                     <div className="text-4xl">📖</div>
                     <p className="text-white font-semibold">Ready to Begin?</p>
@@ -469,7 +542,7 @@ export default function ReadingScreen() {
               )}
               {isReady && isPaused && (
                 <div
-                  className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50"
+                  className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 paused-overlay"
                   onClick={resume}
                 >
                   <div className="text-center space-y-3">
@@ -485,12 +558,12 @@ export default function ReadingScreen() {
       )}
 
       {/* Finished Overlay / Choice Modal */}
-      {isFinished && !reviewMode && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 px-4">
+      {isFinished && showFinishedOverlay && !reviewMode && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 px-4 finished-overlay">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0d1527]/90 border border-white/10 p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl"
+            className="bg-[#0d1527]/90 border border-white/10 p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl finished-modal"
           >
             <div className="text-4xl">🎉</div>
             <h2 className="text-2xl font-black text-white">Reading Complete!</h2>
@@ -579,6 +652,50 @@ export default function ReadingScreen() {
                 Yes, Exit
               </Button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Paragraph Summary Flow (Paragraph Roadmaps) Modal Overlay */}
+      {activeRoadmap && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 px-4 paragraph-summary-overlay">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-[#0d1527]/90 border border-indigo-500/25 p-8 rounded-3xl max-w-xl w-full text-center space-y-6 shadow-2xl relative overflow-hidden paragraph-summary-modal"
+          >
+            {/* Background accent glow */}
+            <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl">🗺️</span>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400">Paragraph Summary Flow</h3>
+              </div>
+              <h2 className="text-lg font-black text-white pt-2 px-2">Keep building your mental map</h2>
+              <p className="text-xs text-slate-400 leading-normal max-w-sm mx-auto">
+                Reflect briefly on this paragraph's core cognitive transition before pacing resumes:
+              </p>
+            </div>
+
+            {/* Roadmap flow layout */}
+            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-6 space-y-3 overflow-x-auto scrollbar-thin scrollbar-thumb-indigo-500/25 paragraph-summary-flow-card">
+              <div className="flex flex-row flex-nowrap items-center justify-center gap-2 text-sm font-semibold leading-relaxed whitespace-nowrap min-w-max mx-auto">
+                {activeRoadmap.split(" → ").map((kw, i, arr) => (
+                  <div key={i} className="flex items-center gap-2 shrink-0">
+                    <span className="text-slate-100 bg-white/4 px-3 py-1.5 rounded-xl border border-white/5 shadow-sm shrink-0 paragraph-summary-chip">{kw}</span>
+                    {i < arr.length - 1 && (
+                      <span className="text-indigo-400 text-lg font-bold animate-pulse shrink-0">→</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-500 italic leading-relaxed">
+              Pacing is currently paused. Guide line will automatically resume in a few seconds...
+            </p>
           </motion.div>
         </div>
       )}

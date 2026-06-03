@@ -17,13 +17,13 @@ export interface DrillText {
 }
 
 export interface DrillTier {
-  id: "tier1" | "tier2" | "tier3";
+  id: "stage1" | "stage2" | "stage3";
   label: string;
   targetWpm: number;
   chunkSize: number;
   description: string;
   hint: string;
-  color: "indigo" | "violet" | "cyan";
+  color: "rose" | "cyan" | "emerald";
   texts: DrillText[];
 }
 
@@ -165,37 +165,37 @@ const tier3Texts: DrillText[] = [
   ),
 ];
 
-// ── Exported Tiers ──────────────────────────────────────────────────────────
+// ── Exported Stages ─────────────────────────────────────────────────────────
 
 export const DRILL_TIERS: DrillTier[] = [
   {
-    id: "tier1",
-    label: "Ignition",
-    targetWpm: 300,
-    chunkSize: 2,
-    description: "Reasoning-dense prose at 300 WPM",
-    hint: "Focus on foveal vision. Banish the inner voice and absorb the analytical blocks.",
-    color: "indigo",
+    id: "stage1",
+    label: "Stage 1: Foveal Calibration",
+    targetWpm: 150,
+    chunkSize: 1,
+    description: "1-word RSVP, flashy ORP highlights, transition markers in contrast colors (beginners).",
+    hint: "Focus on the center. Try to quieten your subvocalization while colors guide your eye.",
+    color: "rose",
     texts: tier1Texts,
   },
   {
-    id: "tier2",
-    label: "Momentum",
-    targetWpm: 400,
-    chunkSize: 2,
-    description: "Reasoning-dense prose at 400 WPM",
-    hint: "Increase your eye fixation width. Capture 2-word groups as single visual shapes.",
-    color: "violet",
+    id: "stage2",
+    label: "Stage 2: Attentional RSVP",
+    targetWpm: 220,
+    chunkSize: 3,
+    description: "3-word RSVP chunks, centered, metronome paced, zero colors (pure high-contrast black/white).",
+    hint: "High-focus RSVP. No visual aid but a metronome ring. Absorb the semantic meaning in chunks.",
+    color: "cyan",
     texts: tier2Texts,
   },
   {
-    id: "tier3",
-    label: "Elite",
-    targetWpm: 500,
-    chunkSize: 2,
-    description: "Reasoning-dense prose at 500 WPM",
-    hint: "Maximum cognitive threshold. Let foveal scanning lock onto semantic patterns.",
-    color: "cyan",
+    id: "stage3",
+    label: "Stage 3: Exam Simulation",
+    targetWpm: 300,
+    chunkSize: 0,
+    description: "Identical to CAT: black text on white bg, strictly timed, no metronome/guide, immediate quiz.",
+    hint: "The ultimate test. Pure, unadorned exam layout. Maintain high comprehension under strict time constraints.",
+    color: "emerald",
     texts: tier3Texts,
   },
 ];

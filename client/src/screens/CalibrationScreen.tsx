@@ -14,10 +14,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useDashboardStore, useSessionStore } from "@/store";
+import { useDashboardStore, useSessionStore, useUserStore } from "@/store";
 import { apiClient } from "@/lib/apiClient";
-import { calculateActualWpm } from "@/lib/utils";
+import { calculateActualWpm, cn } from "@/lib/utils";
 import Button from "@/components/shared/Button";
+import { DOMAINS } from "@/lib/constants";
 
 // Fallback static passages in case the DB fetch fails
 const FALLBACK_PASSAGES = [
@@ -42,6 +43,7 @@ interface CalibPassage {
   body: string;
   word_count: number;
   domain: string;
+  title?: string | null;
   topic_key?: string | null;
 }
 
@@ -55,6 +57,8 @@ const DOMAIN_LABELS: Record<string, string> = {
 
 export default function CalibrationScreen() {
   const navigate = useNavigate();
+  const preferences = useUserStore((s) => s.preferences);
+  const fetchProfile = useUserStore((s) => s.fetchProfile);
   const [phase, setPhase] = useState<"intro" | "ready" | "reading" | "done">("intro");
   const [passage, setPassage] = useState<CalibPassage | null>(null);
 
@@ -84,6 +88,15 @@ export default function CalibrationScreen() {
   }, []);
 
   const wordCount = passage?.word_count ?? passage?.body.split(/\s+/).filter(Boolean).length ?? 100;
+  const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
+    narrow: "max-w-[38rem]",
+    medium: "max-w-[52rem]",
+    wide: "max-w-[65rem]",
+  };
+
+  useEffect(() => {
+    if (!preferences) void fetchProfile();
+  }, [preferences, fetchProfile]);
 
   // User clicked "Start Reading" — reveal passage and silently start timer
   const handleStartReading = () => {
@@ -103,7 +116,7 @@ export default function CalibrationScreen() {
       return;
     }
 
-    const calculatedWpm = Math.min(600, calculateActualWpm(wordCount, elapsedMs));
+    const calculatedWpm = Math.max(100, Math.min(300, calculateActualWpm(wordCount, elapsedMs)));
     setTooFastError(false);
     setWpm(calculatedWpm);
     setPhase("done");
@@ -162,7 +175,7 @@ export default function CalibrationScreen() {
         </button>
       </div>
 
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-6xl mx-auto flex flex-col items-center">
         <AnimatePresence mode="wait">
 
           {/* ── INTRO PHASE ── */}
@@ -229,18 +242,14 @@ export default function CalibrationScreen() {
               {/* Passage meta card */}
               <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 py-4 px-6 inline-flex items-center gap-3 mx-auto">
                 <span className="text-2xl">
-                  {passage.domain === "business" ? "💼"
-                    : passage.domain === "science" ? "🔬"
-                    : passage.domain === "history" ? "📜"
-                    : passage.domain === "abstract" ? "🧩"
-                    : "🌍"}
+                  {DOMAINS.find((domain) => domain.value === passage.domain)?.emoji ?? "📖"}
                 </span>
                 <div className="text-left">
                   <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider">
                     {DOMAIN_LABELS[passage.domain] ?? passage.domain}
                   </p>
                   <p className="text-sm text-slate-300 font-medium mt-0.5">
-                    {passage.topic_key ?? "Academic Reading Passage"}
+                    {passage.title ?? passage.topic_key?.replace(/-/g, " ") ?? "Academic Reading Passage"}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">~{wordCount} words</p>
                 </div>
@@ -271,7 +280,7 @@ export default function CalibrationScreen() {
                 </span>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-8 sm:p-10 shadow-2xl backdrop-blur-sm max-w-[42rem] mx-auto">
+              <div className={cn("rounded-3xl border border-white/10 bg-slate-900/40 p-8 sm:p-10 shadow-2xl backdrop-blur-sm mx-auto w-full", colWidthClass[preferences?.col_width ?? "medium"])}>
                 <div className="space-y-6 text-slate-200 text-[1.125rem] leading-[2.0] font-normal tracking-[0.01em] font-serif select-text text-left">
                   {passage.body.split(/\n\s*\n/).map((p, idx) => (
                     <p key={idx}>{p.trim()}</p>
@@ -312,13 +321,11 @@ export default function CalibrationScreen() {
                 <div className="text-7xl font-black text-white tabular-nums tracking-tight">{wpm}</div>
                 <div className="text-indigo-400 font-semibold mt-2 text-lg">Words Per Minute</div>
                 <div className="mt-3 text-xs text-slate-500">
-                  {wpm < 200
-                    ? "Slower than average — training will help significantly"
-                    : wpm < 300
-                    ? "Average pace — solid foundation for speed gains"
-                    : wpm < 400
-                    ? "Above average — good starting point"
-                    : "Fast reader — training will push you to elite levels"}
+                  {wpm < 350
+                    ? "Comfortable Pace — solid everyday reading baseline"
+                    : wpm < 450
+                    ? "Advanced Pace — competitive reading baseline"
+                    : "Elite Pace — high-performance reading baseline"}
                 </div>
               </div>
 

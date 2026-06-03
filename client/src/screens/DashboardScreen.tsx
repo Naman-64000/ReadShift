@@ -17,12 +17,14 @@ import RecommendationCard from "@/components/dashboard/RecommendationCard";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import Button from "@/components/shared/Button";
 import AdvancedDiagnostics from "@/components/dashboard/AdvancedDiagnostics";
+import { DOMAINS } from "@/lib/constants";
 import { comprehensionToPercent, formatDomain } from "@/lib/utils";
 
 interface HistoryPassage {
   id: string;
   body: string;
   domain: string;
+  title: string;
   topic_key: string | null;
   word_count: number;
 }
@@ -96,7 +98,7 @@ export default function DashboardScreen() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-white">Your Progress</h1>
+            <h1 className="text-2xl font-black text-[rgb(var(--text))]">Your Progress</h1>
             <p className="text-sm text-slate-400 mt-0.5">
               {summary.sessions_completed} sessions completed
             </p>
@@ -138,10 +140,9 @@ export default function DashboardScreen() {
         )}
 
         {/* Metronome Drills promo card */}
-        <div className="relative rounded-2xl border border-white/10 overflow-hidden">
-          {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/60 via-violet-950/40 to-cyan-950/60 pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,0.12),transparent_60%)] pointer-events-none" />
+        <div className="relative rounded-2xl border border-white/10 bg-white/4 overflow-hidden">
+          {/* Gradient accent in dark mode only */}
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-violet-500/3 to-cyan-500/5 pointer-events-none" />
 
           <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-2 flex-1 min-w-0">
@@ -149,7 +150,7 @@ export default function DashboardScreen() {
                 <span className="text-xl">🥁</span>
                 <p className="text-xs font-bold uppercase tracking-widest text-violet-400">Subvocalization Training</p>
               </div>
-              <h2 className="text-base sm:text-lg font-black text-white">Metronome Drills</h2>
+              <h2 className="text-base sm:text-lg font-black text-[rgb(var(--text))]">Metronome Drills</h2>
               <p className="text-xs text-slate-400 leading-relaxed max-w-md">
                 Kill your inner voice. High-speed visual processing drills (300–500 WPM) train your eyes
                 to bypass phonetic relay and read at elite speed.
@@ -180,14 +181,14 @@ export default function DashboardScreen() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-3 w-full min-w-0 overflow-hidden">
             <div>
-              <h2 className="text-sm font-bold text-slate-200">Velocity & Comprehension Evolution</h2>
+              <h2 className="text-sm font-bold text-[rgb(var(--text))]">Velocity & Comprehension Evolution</h2>
               <p className="text-[11px] text-slate-500 mt-0.5">Pacing speed and comprehension accuracy over recent sessions</p>
             </div>
             <WpmChart data={summary.wpm_trend} />
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-3 w-full min-w-0 overflow-hidden">
             <div>
-              <h2 className="text-sm font-bold text-slate-200">Cognitive Sweet Spot Analyzer</h2>
+              <h2 className="text-sm font-bold text-[rgb(var(--text))]">Cognitive Sweet Spot Analyzer</h2>
               <p className="text-[11px] text-slate-500 mt-0.5">Comprehension accuracy mapped across pacing speed ranges</p>
             </div>
             <AccuracyChart data={summary.wpm_comprehension_correlation} />
@@ -223,7 +224,7 @@ export default function DashboardScreen() {
         {/* Reading History Tab */}
         <section className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
           <div>
-            <h2 className="text-base font-black text-white">📜 Reading History</h2>
+            <h2 className="text-base font-black text-[rgb(var(--text))]">🏛️ Reading History</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Review passages you have read, started, or skipped in practice to track your progress.
             </p>
@@ -253,11 +254,11 @@ export default function DashboardScreen() {
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <span className="text-xl shrink-0 mt-0.5">
-                        {DOMAIN_EMOJIS[item.passage.domain] ?? "📖"}
+                        {getDomainEmoji(item.passage.domain)}
                       </span>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-300 group-hover:text-indigo-400 transition-colors truncate">
-                          {item.passage.topic_key ?? "Academic Reading Passage"}
+                          {item.passage.title ?? item.passage.topic_key?.replace(/-/g, " ") ?? "Academic Reading Passage"}
                         </p>
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           Started: {new Date(item.seen_at).toLocaleDateString()} at {new Date(item.seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {item.passage.word_count} words
@@ -320,14 +321,6 @@ export default function DashboardScreen() {
   );
 }
 
-const DOMAIN_EMOJIS: Record<string, string> = {
-  business: "💼",
-  science: "🔬",
-  history: "📜",
-  abstract: "🧩",
-  social: "🌍",
-};
-
 const DOMAIN_LABELS: Record<string, string> = {
   business: "Business & Economics",
   science: "Science & Technology",
@@ -335,6 +328,10 @@ const DOMAIN_LABELS: Record<string, string> = {
   abstract: "Philosophy & Abstract",
   social: "Society & Psychology",
 };
+
+function getDomainEmoji(domain: string) {
+  return DOMAINS.find((item) => item.value === domain)?.emoji ?? "📖";
+}
 
 function HistoryPassageModal({
   passage,
@@ -361,14 +358,14 @@ function HistoryPassageModal({
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-xl">
-                {DOMAIN_EMOJIS[passage.domain] ?? "📖"}
+                {getDomainEmoji(passage.domain)}
               </span>
               <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">
                 {DOMAIN_LABELS[passage.domain] ?? passage.domain}
               </span>
             </div>
             <h3 className="text-lg font-black text-white truncate mt-0.5">
-              {passage.topic_key ?? "Academic Reading Passage"}
+              {passage.title ?? passage.topic_key?.replace(/-/g, " ") ?? "Academic Reading Passage"}
             </h3>
             <p className="text-xs text-slate-500 font-medium">~{passage.word_count} words</p>
           </div>

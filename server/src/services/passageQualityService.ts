@@ -25,6 +25,7 @@ export interface PassageQualityResult {
   status: "ready" | "draft";
   quality_score: number;
   topic_key: string;
+  title: string;
 }
 
 function extractTopicKey(body: string): string {
@@ -35,6 +36,20 @@ function extractTopicKey(body: string): string {
     .filter(Boolean)
     .slice(0, 8)
     .join("-");
+}
+
+export function buildPassageTitle(topicKey: string | null | undefined): string {
+  const fallback = "Academic Reading Passage";
+  if (!topicKey) return fallback;
+
+  const title = topicKey
+    .replace(/[-_]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  return title || fallback;
 }
 
 function clampScore(n: number): number {
@@ -120,5 +135,6 @@ export function evaluatePassageQuality(input: PassageQualityInput): PassageQuali
     status: quality_score >= 70 ? "ready" : "draft",
     quality_score,
     topic_key: extractTopicKey(input.body),
+    title: buildPassageTitle(extractTopicKey(input.body)),
   };
 }

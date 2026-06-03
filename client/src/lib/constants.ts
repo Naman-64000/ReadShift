@@ -6,13 +6,13 @@
 import type { Domain, ColWidth } from "@/types";
 
 // ── WPM Slider ────────────────────────────────────────────────
-export const MIN_WPM = 150;
-export const MAX_WPM = 500;
-export const DEFAULT_WPM = 280;
-export const WPM_MIN = 150;
-export const WPM_MAX = 500;
+export const MIN_WPM = 100;
+export const MAX_WPM = 300;
+export const DEFAULT_WPM = 150;
+export const WPM_MIN = 100;
+export const WPM_MAX = 300;
 export const WPM_STEP = 10;
-export const WPM_DEFAULT = 280;
+export const WPM_DEFAULT = 150;
 
 // ── Domains ───────────────────────────────────────────────────
 export const DOMAINS: { value: Domain; label: string; description: string; emoji: string }[] = [

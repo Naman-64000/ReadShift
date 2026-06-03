@@ -184,6 +184,7 @@ export async function getUserSeenPassages(req: Request, res: Response, next: Nex
               status: true,
               quality_score: true,
               word_count: true,
+              title: true,
               topic_key: true,
               flagged: true,
               source: true,

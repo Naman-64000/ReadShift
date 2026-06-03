@@ -34,11 +34,30 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ error?: { code: string; message: string } }>) => {
     const apiError = error.response?.data?.error;
-    const message = apiError?.message ?? error.message ?? "An error occurred";
-    
-    // Note: We avoid window.location.href = "/auth" here because it causes 
-    // abrupt redirects for background tasks (like pre-fetching).
-    // The App.tsx route guards will handle unauthorized states naturally.
+    const code = apiError?.code;
+    let message = apiError?.message ?? error.message ?? "An error occurred";
+
+    // 1. Technical/Internal system checks
+    const isTechnical =
+      code === "INTERNAL_ERROR" ||
+      /prisma|postgres|sql|database|query|connection pool|connect/i.test(message) ||
+      message.includes("at ") ||
+      message.includes("Error:") ||
+      message.includes("TypeError");
+
+    if (isTechnical) {
+      message = "We are experiencing a temporary server issue. Please try again in a few moments.";
+    } else if (code === "POOL_EXHAUSTED") {
+      message = "All passages in this domain have been completed! Please calibrate again or try a different reading domain.";
+    } else if (code === "UNAUTHORIZED" || code === "FORBIDDEN") {
+      message = "Your session has expired. Please sign in again.";
+    } else if (code === "VALIDATION_ERROR") {
+      if (/validation|zod|schema|invalid type|required/i.test(message)) {
+        message = "Invalid options selected. Please check your configurations and try again.";
+      }
+    } else if (error.code === "ERR_NETWORK" || !error.response) {
+      message = "Unable to connect to ReadShift. Please verify your internet connection and try again.";
+    }
 
     return Promise.reject(new Error(message));
   }

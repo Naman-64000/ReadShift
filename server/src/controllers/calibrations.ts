@@ -7,7 +7,7 @@ import { prisma } from "../lib/prisma.js";
 import { AppError } from "../types/index.js";
 
 const SubmitSchema = z.object({
-  wpm: z.number().int().positive().max(2000),
+  wpm: z.number().int().min(100).max(2000),
   recorded_at: z.string(),
 });
 
@@ -76,6 +76,7 @@ export async function getCalibrationPassage(_req: Request, res: Response, next: 
         body: true,
         word_count: true,
         domain: true,
+        title: true,
         topic_key: true,
         created_at: true,
       },
@@ -97,6 +98,6 @@ export async function getCalibrationPassage(_req: Request, res: Response, next: 
       if (r <= 0) { chosen = passages[i]; break; }
     }
 
-    res.json({ success: true, data: { id: chosen.id, body: chosen.body, word_count: chosen.word_count, domain: chosen.domain, topic_key: chosen.topic_key } });
+    res.json({ success: true, data: { id: chosen.id, body: chosen.body, word_count: chosen.word_count, domain: chosen.domain, title: chosen.title, topic_key: chosen.topic_key } });
   } catch (err) { next(err); }
 }

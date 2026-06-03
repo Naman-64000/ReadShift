@@ -536,7 +536,7 @@ export default function AdminScreen() {
           {/* Header */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h1 className="text-3xl font-black text-white">Admin Console</h1>
+              <h1 className="text-3xl font-black text-[rgb(var(--text))]">Admin Console</h1>
               <p className="text-sm text-slate-400">
                 Manage passage quality, user roles, and passage assignment history.
               </p>
@@ -553,16 +553,17 @@ export default function AdminScreen() {
           )}
 
           {/* ── Passage Controls ────────────────────────────────────────────── */}
-          <section className="rounded-2xl border border-white/10 bg-white/4 p-4 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
+          {!loading && (
+            <section className="rounded-2xl border border-white/10 bg-white/4 p-4 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h2 className="text-lg font-bold text-white">Passage Controls</h2>
+                <h2 className="text-lg font-bold text-[rgb(var(--text))]">Passage Controls</h2>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <select
                   value={domainFilter}
                   onChange={(e) => setDomainFilter(e.target.value)}
-                  className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-slate-200"
+                  className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="all">All Domains</option>
                   {DOMAINS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
@@ -570,7 +571,7 @@ export default function AdminScreen() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-slate-200"
+                  className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="all">All Statuses</option>
                   <option value="ready">Ready</option>
@@ -578,11 +579,11 @@ export default function AdminScreen() {
                   <option value="flagged">Flagged</option>
                   <option value="retired">Retired</option>
                 </select>
-                <span className="text-slate-600">|</span>
+                <span className="text-slate-400">|</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-slate-200 font-semibold"
+                  className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="created_at">Date Added</option>
                   <option value="quality_score">Quality Score</option>
@@ -591,7 +592,7 @@ export default function AdminScreen() {
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
-                  className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-slate-200"
+                  className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="desc">Descending</option>
                   <option value="asc">Ascending</option>
@@ -656,7 +657,7 @@ export default function AdminScreen() {
                           className="py-2.5 pr-4 max-w-[28rem] cursor-pointer"
                           onClick={() => setSelectedPassage(p)}
                         >
-                          <p className="line-clamp-2 text-slate-200 group-hover:text-white transition-colors text-sm leading-relaxed">
+                          <p className="line-clamp-2 text-slate-400 group-hover:text-[rgb(var(--text))] transition-colors text-sm leading-relaxed">
                             {p.body}
                           </p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -667,7 +668,7 @@ export default function AdminScreen() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-2.5 pr-4 text-slate-300 whitespace-nowrap">
+                        <td className="py-2.5 pr-4 text-slate-500 whitespace-nowrap">
                           <span className="capitalize">{p.domain}</span>
                         </td>
                         <td className="py-2.5 pr-4">
@@ -723,12 +724,13 @@ export default function AdminScreen() {
                 </table>
               )}
             </div>
-          </section>
+            </section>
+          )}
 
           {/* ── User Passage History ────────────────────────────────────────── */}
           <section className="rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
             <div>
-              <h2 className="text-lg font-bold text-white">User Passage History</h2>
+            <h2 className="text-lg font-bold text-[rgb(var(--text))]">User Passage History</h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Expand any user to see all passages they have been assigned. Use ↺ Re-allow to remove a seen record and make that passage available to the user again.
               </p>
@@ -746,7 +748,7 @@ export default function AdminScreen() {
 
           {/* ── Admin Role Controls ─────────────────────────────────────────── */}
           <section className="rounded-2xl border border-white/10 bg-white/4 p-4 space-y-4">
-            <h2 className="text-lg font-bold text-white">Admin Role Controls</h2>
+            <h2 className="text-lg font-bold text-[rgb(var(--text))]">Admin Role Controls</h2>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
@@ -761,7 +763,7 @@ export default function AdminScreen() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.id} className="border-b border-white/5">
-                      <td className="py-2 pr-4 text-slate-200 max-w-[18rem] truncate">{u.email}</td>
+                      <td className="py-2 pr-4 text-[rgb(var(--text))] max-w-[18rem] truncate">{u.email}</td>
                       <td className="py-2 pr-4 text-slate-300">{u.streak_days}🔥</td>
                       <td className="py-2 pr-4 text-slate-400">{u._count?.sessions ?? "—"}</td>
                       <td className="py-2 pr-4">

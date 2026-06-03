@@ -63,7 +63,9 @@ export async function runPassageWarming(
           source: "gemini",
           status: quality.status,
           quality_score: quality.quality_score,
+          title: passageData.title || quality.title,
           topic_key: quality.topic_key,
+          paragraph_roadmaps: passageData.paragraph_roadmaps,
           hash,
           questions: {
             create: questions.map((q) => ({

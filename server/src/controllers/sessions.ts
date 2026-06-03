@@ -22,9 +22,11 @@ const StartSessionResponseSchema = z.object({
     source: z.string().min(1),
     status: z.enum(["draft", "ready", "flagged", "retired"]),
     quality_score: z.number().int().nullable().optional(),
+    title: z.string().min(1),
     topic_key: z.string().nullable().optional(),
     hash: z.string().nullable().optional(),
     flagged: z.boolean(),
+    paragraph_roadmaps: z.array(z.string()).default([]),
     created_at: z.date(),
   }),
   questions: z.array(
@@ -40,7 +42,7 @@ const StartSessionResponseSchema = z.object({
 
 const SubmitSchema = z.object({
   passage_id: z.string().uuid(),
-  target_wpm: z.number().int().positive(),
+  target_wpm: z.number().int().min(100).max(300),
   elapsed_ms: z.number().int().positive(),
   started_at: z.string(),
   chunk_size: z.number().int().min(1),
@@ -201,6 +203,7 @@ export async function getUserHistory(req: Request, res: Response, next: NextFunc
           id: h.passage.id,
           body: h.passage.body,
           domain: h.passage.domain,
+          title: h.passage.title,
           topic_key: h.passage.topic_key,
           word_count: h.passage.word_count,
         },
@@ -221,5 +224,4 @@ export async function getUserHistory(req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
-
 

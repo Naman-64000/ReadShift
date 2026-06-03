@@ -22,6 +22,7 @@ const PrefsSchema = z.object({
   mcqs_enabled:        z.boolean().optional(),
   progress_bar_enabled: z.boolean().optional(),
   timer_enabled:       z.boolean().optional(),
+  roadmaps_enabled:    z.boolean().optional(),
 });
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {

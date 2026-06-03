@@ -1,19 +1,16 @@
 /**
  * client/src/index.css
  *
- * Global styles entry point.
- *
- * What this file will do:
- *  - Import Tailwind CSS base, components, and utilities layers.
- *  - Define CSS custom properties (design tokens) for the ReadShift theme.
- *  - Set global resets and base typographic styles.
- *  - Import Google Font (Inter or similar).
+ * Global styles + comprehensive Light Mode theme overrides.
  */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Dark Mode (default) CSS variables
+   ============================================================ */
 :root {
   --bg: 9 11 17;
   --surface: 15 23 42;
@@ -23,6 +20,8 @@
   --primary: 99 102 241;
   --primary-strong: 79 70 229;
   --border: 71 85 105;
+  --card-bg: 255 255 255 / 0.04;  /* matches bg-white/4 */
+  --muted-text: 148 163 184;
 }
 
 *,
@@ -54,6 +53,921 @@ body {
   display: none;
 }
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+
+/* ==========================================================================
+   LIGHT MODE — Complete theme override
+   ========================================================================== */
+
+body.light {
+  --bg: 241 245 249;           /* slate-100 — clean, modern light base */
+  --surface: 255 255 255;      /* pure white surfaces */
+  --surface-2: 226 232 240;    /* slate-200 — secondary surface */
+  --text: 15 23 42;            /* slate-900 — rich dark text */
+  --text-muted: 100 116 139;   /* slate-500 — readable muted text */
+  --primary: 79 70 229;        /* indigo-600 */
+  --primary-strong: 67 56 202; /* indigo-700 */
+  --border: 203 213 225;       /* slate-300 */
+  --card-bg: 255 255 255;      /* white card surfaces */
+  --muted-text: 100 116 139;   /* slate-500 */
+
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.04), transparent 50%),
+    radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.03), transparent 45%),
+    rgb(var(--bg));
+  color: rgb(var(--text));
+}
+
+/* ── 1. Full-page dark backgrounds → light ── */
+body.light .bg-slate-950,
+body.light .bg-slate-900,
+body.light .bg-black,
+body.light .bg-stone-950,
+body.light .bg-\[\#060814\],
+body.light .bg-\[\#0b101c\],
+body.light .bg-\[\#0b1020\],
+body.light .bg-\[\#0d1527\] {
+  background-color: rgb(var(--bg)) !important;
+}
+
+/* ── 2. Navbar — solid white header in light mode ── */
+body.light header {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+/* Navbar logo text */
+body.light header .text-white {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* Navbar active nav pill background */
+body.light .bg-white\/10 {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+}
+
+/* Active nav link */
+body.light nav a.text-white,
+body.light nav a[class*="text-white"] {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* Inactive nav links */
+body.light nav a.text-slate-400 {
+  color: rgb(100, 116, 139) !important;
+}
+
+/* Mobile drawer */
+body.light .sm\:hidden.absolute {
+  background-color: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── 3. Cards and surface containers ── */
+body.light .bg-white\/4,
+body.light .bg-white\/5,
+body.light .bg-white\/3,
+body.light .bg-white\/6,
+body.light .bg-white\/8,
+body.light .bg-white\/1 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.07) !important;
+}
+
+body.light .bg-slate-900\/40,
+body.light .bg-slate-900\/50,
+body.light .bg-slate-900\/60,
+body.light .bg-slate-900\/70,
+body.light .bg-slate-900\/80,
+body.light .bg-slate-900\/90,
+body.light .bg-stone-900\/70,
+body.light .bg-stone-950\/60,
+body.light .bg-slate-950\/60,
+body.light .bg-slate-950\/90 {
+  background-color: rgb(255, 255, 255) !important;
+}
+
+/* ── 4. Borders ── */
+body.light .border-white\/5,
+body.light .border-white\/6,
+body.light .border-white\/8,
+body.light .border-white\/10,
+body.light .border-white\/12,
+body.light .border-white\/15,
+body.light .border-white\/20,
+body.light .border-slate-500\/20,
+body.light .border-stone-850,
+body.light .border-stone-800,
+body.light .border-slate-800,
+body.light .border-slate-700 {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light .divide-white\/5 > * + * {
+  border-color: rgba(15, 23, 42, 0.07) !important;
+}
+
+body.light .border-indigo-500\/20,
+body.light .border-indigo-500\/25,
+body.light .border-indigo-500\/30,
+body.light .border-indigo-500\/40 {
+  border-color: rgba(79, 70, 229, 0.25) !important;
+}
+
+body.light .border-emerald-500\/25,
+body.light .border-emerald-500\/30 {
+  border-color: rgba(5, 150, 105, 0.3) !important;
+}
+
+body.light .border-amber-500\/25,
+body.light .border-amber-500\/30,
+body.light .border-amber-500\/40 {
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+
+body.light .border-red-500\/20 {
+  border-color: rgba(220, 38, 38, 0.25) !important;
+}
+
+/* ── 5. Text colors — the most critical fixes ── */
+
+/* All hardcoded text-white must become dark in light mode */
+body.light .text-white {
+  color: rgb(15, 23, 42) !important;
+}
+
+body.light .text-stone-100,
+body.light .text-slate-100 {
+  color: rgb(15, 23, 42) !important;
+}
+
+body.light .text-slate-200,
+body.light .text-stone-200 {
+  color: rgb(30, 41, 59) !important;  /* slate-800 */
+}
+
+body.light .text-slate-300,
+body.light .text-stone-300 {
+  color: rgb(51, 65, 85) !important;  /* slate-700 */
+}
+
+body.light .text-slate-400,
+body.light .text-stone-400 {
+  color: rgb(71, 85, 105) !important; /* slate-600 */
+}
+
+body.light .text-slate-500,
+body.light .text-stone-500 {
+  color: rgb(100, 116, 139) !important; /* slate-500 */
+}
+
+body.light .text-slate-600 {
+  color: rgb(120, 130, 148) !important;
+}
+
+/* ── 6. Accent colors (keep colorful but adjust for light) ── */
+body.light .text-indigo-400,
+body.light .text-indigo-300 {
+  color: rgb(79, 70, 229) !important; /* indigo-600 */
+}
+
+body.light .text-violet-400,
+body.light .text-violet-300 {
+  color: rgb(109, 40, 217) !important; /* violet-700 */
+}
+
+body.light .text-emerald-400,
+body.light .text-emerald-300 {
+  color: rgb(5, 150, 105) !important; /* emerald-600 */
+}
+
+body.light .text-amber-400,
+body.light .text-amber-300 {
+  color: rgb(180, 83, 9) !important; /* amber-700 */
+}
+
+body.light .text-red-400,
+body.light .text-red-300 {
+  color: rgb(185, 28, 28) !important; /* red-700 */
+}
+
+body.light .text-rose-400,
+body.light .text-rose-300 {
+  color: rgb(190, 18, 60) !important; /* rose-700 */
+}
+
+body.light .text-cyan-400,
+body.light .text-cyan-300 {
+  color: rgb(8, 145, 178) !important; /* cyan-600 */
+}
+
+body.light .text-amber-200 {
+  color: rgb(180, 83, 9) !important;
+}
+
+/* ── 7. Buttons — critical contrast fix ── */
+/* Primary buttons keep white text (they have colored bg) */
+body.light .bg-indigo-600,
+body.light .bg-indigo-500 {
+  /* Keep bg, ensure text-white is not overridden when inside these */
+}
+
+/* Only restore white text inside solid-colored button backgrounds */
+body.light .bg-indigo-600 .text-white,
+body.light .bg-indigo-500 .text-white,
+body.light .bg-violet-600 .text-white,
+body.light .bg-violet-500 .text-white {
+  color: rgb(255, 255, 255) !important;
+}
+
+/* The Button component uses text-white directly on the element — we must not override that
+   when variant is primary (has bg-indigo-600). We target via a specificity trick. */
+body.light button.bg-indigo-600,
+body.light button.bg-indigo-500,
+body.light button.bg-violet-600,
+body.light button.bg-violet-500,
+body.light button.bg-red-600,
+body.light button.bg-red-500,
+body.light button[class*="bg-indigo-6"],
+body.light button[class*="bg-indigo-5"],
+body.light button[class*="bg-violet-6"],
+body.light button[class*="bg-violet-5"] {
+  color: rgb(255, 255, 255) !important;
+}
+
+/* Secondary buttons — use dark text, light bg */
+body.light button[class*="bg-\[rgb\(var\(--surface-2\)"] {
+  background-color: rgb(226, 232, 240) !important;
+  color: rgb(15, 23, 42) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+/* ── 8. Hover states ── */
+body.light .hover\:text-white:hover {
+  color: rgb(79, 70, 229) !important;
+}
+
+body.light .hover\:bg-white\/5:hover,
+body.light .hover\:bg-white\/3:hover,
+body.light .hover\:bg-white\/10:hover {
+  background-color: rgba(79, 70, 229, 0.06) !important;
+}
+
+body.light .hover\:bg-slate-900\/80:hover,
+body.light .hover\:bg-slate-900\/50:hover,
+body.light .hover\:bg-slate-900\/85:hover,
+body.light .hover\:bg-slate-800\/40:hover,
+body.light .hover\:bg-slate-800\/80:hover,
+body.light .hover\:bg-stone-900\/80:hover,
+body.light .hover\:bg-stone-900\/50:hover,
+body.light .hover\:bg-stone-800:hover {
+  background-color: rgba(79, 70, 229, 0.06) !important;
+}
+
+body.light .hover\:border-white\/20:hover,
+body.light .hover\:border-slate-750:hover,
+body.light .hover\:border-slate-700:hover {
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+body.light .group:hover .group-hover\:text-indigo-400 {
+  color: rgb(79, 70, 229) !important;
+}
+
+body.light .hover\:text-stone-200:hover,
+body.light .hover\:text-stone-100:hover,
+body.light .hover\:text-slate-100:hover {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* ── 9. Metronome Drill background and screen ── */
+body.light .min-h-screen.bg-slate-950 {
+  background-color: rgb(var(--bg)) !important;
+}
+
+/* Drill tier cards */
+body.light .border-slate-800.bg-slate-900\/50 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+body.light .hover\:bg-slate-900\/80.hover\:border-slate-750 {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* "How it works" info box in drills */
+body.light .border-slate-800.bg-slate-900\/70 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Duration selector in drills */
+body.light .bg-slate-800\/60 {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+body.light .border-slate-700 {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* "Visual Pacing Practice" badge in drills header */
+body.light .bg-slate-800\/80.border-slate-700 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+body.light .bg-slate-800\/80.border-slate-700 .text-slate-300 {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* Drills active duration button */
+body.light .bg-stone-200.text-slate-900 {
+  background-color: rgb(79, 70, 229) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+/* ── 10. Reading Screen ── */
+body.light .bg-slate-950\/90.backdrop-blur {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Reading passage box */
+body.light .bg-\[\#0d1527\]\/50,
+body.light .bg-\[#0d1527\]\/50 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* WPM slider track */
+body.light .bg-white\/10.accent-indigo-500 {
+  background-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* ── 11. SessionConfig domain buttons ── */
+body.light .border-white\/10.bg-white\/4.text-slate-400 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: rgb(71, 85, 105) !important;
+}
+
+/* ── 12. Admin Screen specifics ── */
+body.light .bg-slate-800 {
+  background-color: rgb(226, 232, 240) !important;
+  color: rgb(51, 65, 85) !important;
+}
+
+/* ── 13. Colored tint backgrounds ── */
+body.light .bg-indigo-500\/10 { background-color: rgba(79, 70, 229, 0.07) !important; }
+body.light .bg-indigo-500\/8  { background-color: rgba(79, 70, 229, 0.06) !important; }
+body.light .bg-indigo-500\/5  { background-color: rgba(79, 70, 229, 0.04) !important; }
+body.light .bg-indigo-500\/15 { background-color: rgba(79, 70, 229, 0.10) !important; }
+body.light .bg-indigo-500\/20 { background-color: rgba(79, 70, 229, 0.12) !important; }
+body.light .bg-emerald-500\/10 { background-color: rgba(5, 150, 105, 0.08) !important; }
+body.light .bg-emerald-500\/20 { background-color: rgba(5, 150, 105, 0.12) !important; }
+body.light .bg-amber-500\/10  { background-color: rgba(217, 119, 6, 0.08) !important; }
+body.light .bg-amber-500\/5   { background-color: rgba(217, 119, 6, 0.04) !important; }
+body.light .bg-red-500\/10    { background-color: rgba(220, 38, 38, 0.08) !important; }
+body.light .bg-rose-500\/10   { background-color: rgba(225, 29, 72, 0.08) !important; }
+body.light .bg-violet-950\/40,
+body.light .bg-indigo-950\/60,
+body.light .bg-indigo-950\/20,
+body.light .bg-cyan-950\/60 {
+  background-color: rgba(79, 70, 229, 0.04) !important;
+}
+
+/* ── 14. Stat card values ── */
+/* StatCard's accent defaults to text-white which we override globally.
+   But we need to ensure the value (490 WPM, 0%, 2) reads dark. */
+body.light .text-3xl.font-black.tabular-nums {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* ── 15. Modal backdrops ── */
+body.light .fixed.inset-0.bg-slate-950\/90 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Modal card itself */
+body.light .bg-\[\#0d1527\] {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* ── 16. Form controls ── */
+body.light select,
+body.light input[type="text"],
+body.light input[type="email"],
+body.light input[type="password"] {
+  background-color: rgb(255, 255, 255) !important;
+  color: rgb(15, 23, 42) !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+body.light input[type="range"] {
+  background-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+/* ── 17. Metronome drill cards — tier badges ── */
+body.light .bg-rose-950\/30 {
+  background-color: rgba(190, 18, 60, 0.08) !important;
+}
+body.light .bg-cyan-950\/30 {
+  background-color: rgba(8, 145, 178, 0.08) !important;
+}
+body.light .bg-emerald-950\/30 {
+  background-color: rgba(5, 150, 105, 0.08) !important;
+}
+body.light .border-rose-900\/30 {
+  border-color: rgba(190, 18, 60, 0.2) !important;
+}
+body.light .border-cyan-900\/30 {
+  border-color: rgba(8, 145, 178, 0.2) !important;
+}
+body.light .border-emerald-900\/30 {
+  border-color: rgba(5, 150, 105, 0.2) !important;
+}
+
+/* Rose/cyan text in tier badges → keep colorful in light */
+body.light .text-rose-400 {
+  color: rgb(190, 18, 60) !important;
+}
+
+/* ── 18. Blur overlays ── */
+body.light .backdrop-blur-md,
+body.light .backdrop-blur-xl,
+body.light .backdrop-blur-sm {
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+/* ── 19. Progress bars & lines ── */
+body.light .bg-white\/5.rounded-full {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── 20. Passage controls / Skimming top bar text ── */
+body.light .text-xs.font-bold.text-indigo-400.uppercase.tracking-widest {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* ── 21. Recommendation card ── */
+body.light .border-indigo-500\/30.bg-indigo-500\/8 {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* ── 22. Toast / notification ── */
+body.light .bg-indigo-500\/10.text-indigo-300 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  color: rgb(79, 70, 229) !important;
+}
+
+/* ── 23. Chart ticks (Recharts) — already use fill color directly, won't be affected ── */
+
+/* ── 24. WPM Slider value display ── */
+body.light .text-6xl.font-black.text-white.tabular-nums,
+body.light .text-7xl.font-black.text-white.tabular-nums {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* ── 25. "Reading History" section and passage preview ── */
+body.light .hover\:bg-white\/3 {
+  /* handled by white/3 override above */
+}
+
+/* ── 26. Auth screen ── */
+body.light .bg-indigo-950\/20 {
+  background-color: rgba(79, 70, 229, 0.06) !important;
+}
+
+/* ── 27. Stage 3 exam RSVP — must stay white background, dark text ── */
+body.light .bg-white.shadow-xl.border-stone-300 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgb(203, 213, 225) !important;
+}
+
+/* ── 28. Gradient overlays — make them very subtle in light ── */
+body.light .bg-gradient-to-br.from-indigo-950\/60,
+body.light .bg-gradient-to-br.from-slate-900 {
+  background: rgba(79, 70, 229, 0.04) !important;
+}
+
+/* ── 29. Misc dark elements ── */
+body.light .bg-slate-900\/60 {
+  background-color: rgb(255, 255, 255) !important;
+}
+
+body.light .bg-stone-950\/80 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+body.light .border-b.border-white\/8 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+body.light .border-t.border-white\/8 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+body.light .border-b.border-white\/5 {
+  border-color: rgba(15, 23, 42, 0.07) !important;
+}
+
+/* ── 30. Settings screen panels ── */
+body.light .divide-y.divide-white\/8 > * + * {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── 31. Streak badge ── */
+body.light .bg-amber-500\/20.text-amber-300.border-amber-500\/40 {
+  background-color: rgba(217, 119, 6, 0.1) !important;
+  color: rgb(180, 83, 9) !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+
+/* ── 32. Reading history items hover ── */
+body.light .hover\:bg-white\/3:hover {
+  background-color: rgba(79, 70, 229, 0.04) !important;
+}
+
+/* ── 33. MCQ Screen answer options ── */
+body.light .border-white\/10.bg-white\/4.text-slate-300 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: rgb(51, 65, 85) !important;
+}
+
+/* ── 34. Admin hex background modal ── */
+body.light .bg-\[\\#090d16\] {
+  background-color: rgb(241, 245, 249) !important;
+}
+
+/* ── 35. WPM Slider track in light mode ── */
+body.light input[type="range"].bg-white\/10,
+body.light input[type="range"] {
+  background-color: rgb(203, 213, 225) !important; /* slate-300 */
+}
+
+/* ── 36. Drill tier card active icon numbers ── */
+body.light .border-slate-700.bg-slate-800 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* ── 37. Settings preset cards (Learn Mode / Test Mode) ── */
+/* These have dynamic text-white class applied inline — ensure contrast */
+body.light [class*="border-emerald-500"][class*="bg-emerald-500"] .text-white {
+  color: rgb(4, 120, 87) !important;  /* emerald-700 */
+}
+body.light [class*="border-indigo-500"][class*="bg-indigo-500"] .text-white {
+  color: rgb(67, 56, 202) !important; /* indigo-700 */
+}
+
+/* ── 38. Settings toggle buttons ── */
+body.light button[class*="bg-indigo-500/15"][class*="border-indigo-500"] {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* ── 39. Passage controls bar in reading screen ── */
+body.light .bg-slate-900\/60.text-slate-300 {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+  color: rgb(71, 85, 105) !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+/* ── 40. Results screen (SessionResultsScreen) ── */
+body.light .bg-indigo-600\/20 { background-color: rgba(79, 70, 229, 0.08) !important; }
+body.light .border-indigo-600\/30 { border-color: rgba(79, 70, 229, 0.2) !important; }
+
+/* ── 41. RecommendationCard text ── */
+body.light .text-indigo-200 {
+  color: rgb(79, 70, 229) !important; /* indigo-600 */
+}
+
+/* ── 42. Admin screen headings and row text ── */
+body.light .text-sm.text-slate-200.font-medium {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* ── 43. AdvancedDiagnostics component ── */
+body.light [class*="bg-white/"][class*="rounded"] {
+  background-color: rgb(255, 255, 255) !important;
+}
+
+/* ── 44. Ensure no card border is invisible ── */
+body.light .border {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+/* ── 45. Overall text-white deep override for any missed elements ── */
+/* We do this last so it catches any stray .text-white we missed */
+body.light *[class~="text-white"]:not(button[class*="bg-indigo"]):not(button[class*="bg-violet"]):not(button[class*="bg-rose"]):not(button[class*="bg-red"]) {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* But keep text-white when it's inside an explicit solid-bg button */
+body.light button.bg-indigo-600,
+body.light button.bg-indigo-500,
+body.light button.bg-violet-600,
+body.light button.bg-violet-500,
+body.light a.bg-indigo-600 {
+  color: rgb(255, 255, 255) !important;
+}
+
+/* ── 46. Toggle OFF state in light mode — show visible grey instead of invisible white/10 ── */
+/* When a toggle is OFF (bg-white/10), in light mode it becomes transparent. Fix: show slate-200 */
+body.light button.bg-white\/10 {
+  background-color: rgb(203, 213, 225) !important; /* slate-300 — clearly visible grey */
+}
+
+/* The toggle thumb dot in light mode should stay white so it's visible on the slate bg */
+body.light button.bg-white\/10 > span,
+body.light button.bg-white\/10 .rounded-full {
+  background-color: rgb(255, 255, 255) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important;
+}
+
+/* ── 47. Settings row hover — currently bg-white/5 which disappears in light mode ── */
+body.light .hover\:bg-white\/5:hover {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+}
+
+/* Settings row labels — text-white is caught by rule 45, but we need text-sm.font-medium rows */
+body.light .text-sm.font-medium.text-white,
+body.light .text-sm.font-medium[class~="text-white"] {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* ── 48. "Start Reading →" button text — primary variant always keeps white text ── */
+/* Primary buttons (bg-indigo-600) must have white text in light mode */
+body.light button[class*="bg-indigo-6"],
+body.light button[class*="bg-indigo-5"] {
+  color: rgb(255, 255, 255) !important;
+}
+
+/* ── 49. Navbar border — use very subtle border, no harsh white line in dark mode ── */
+/* Already handled by using --border CSS variable, but ensure no bright line shows in dark */
+body:not(.light) header {
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ── 50. Sign-out button in light mode — no grey background ── */
+body.light header button[class*="text-rose"] {
+  background-color: transparent !important;
+}
+
+/* ── 51. Navbar --border variable usage for light ── */
+body.light header {
+  border-bottom-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── 52. Admin lazy loading skeleton — ensure skeleton has correct bg ── */
+body.light .animate-pulse.bg-white\/5 {
+  background-color: rgba(79, 70, 229, 0.04) !important;
+}
+body.light .animate-pulse.bg-slate-800\/60 {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+}
+
+/* ── 53. Metronome drill tier cards — make them themed in light mode ── */
+body.light .border-rose-900\/30 { border-color: rgba(190, 18, 60, 0.25) !important; }
+body.light .border-cyan-900\/30 { border-color: rgba(8, 145, 178, 0.25) !important; }
+body.light .border-emerald-900\/30 { border-color: rgba(5, 150, 105, 0.25) !important; }
+
+/* ── 54. Settings button option chips (Line Width, Font Size, etc.) in light mode ── */
+/* Active chip: indigo background, white text — KEEP WHITE TEXT */
+body.light .bg-indigo-500.border-indigo-400.text-white {
+  color: rgb(255, 255, 255) !important;
+}
+
+/* Inactive chip */
+body.light .bg-white\/5.border-white\/5.text-slate-400 {
+  background-color: rgb(241, 245, 249) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: rgb(71, 85, 105) !important;
+}
+
+body.light .bg-white\/5.border-white\/5.text-slate-400:hover {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  color: rgb(79, 70, 229) !important;
+}
+
+/* ── 55. Settings section container row hover ── */
+body.light .rounded-2xl.border.border-white\/10.bg-white\/4 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── 56. Preset mode cards inner "group-hover" text — Learn Mode heading ── */
+body.light .group-hover\:text-emerald-400,
+body.light .group-hover\:text-indigo-400 {
+  /* These are fine since they stay colorful */
+}
+
+/* ── 57. Dark mode — ensure no stray white lines from border utilities ── */
+body:not(.light) .border-b {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+body:not(.light) header {
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ── 58. Highlight Chunk settings in Light Mode ── */
+body.light .reading-chunk-inactive {
+  color: rgb(71, 85, 105) !important; /* slate-600 — clear, readable, dark-grey text */
+}
+
+body.light .reading-chunk-active {
+  color: rgb(15, 23, 42) !important; /* slate-900 — active text is always dark slate, matching dark mode's uniform white text */
+}
+
+/* Subtle highlight in light mode */
+body.light .reading-chunk-subtle {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .reading-chunk-subtle .absolute {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  border-color: rgba(79, 70, 229, 0.15) !important;
+}
+
+/* Moderate highlight in light mode */
+body.light .reading-chunk-moderate {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .reading-chunk-moderate .absolute {
+  background-color: rgba(79, 70, 229, 0.16) !important;
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+/* Bold / Intense highlight in light mode: clear purple background, but text remains dark slate for uniformity */
+body.light .reading-chunk-intense {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .reading-chunk-intense .absolute {
+  background-color: rgba(79, 70, 229, 0.40) !important;
+  border-color: rgba(79, 70, 229, 0.5) !important;
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.15) !important;
+}
+
+/* ── 59. Reading Screen Overlays in Light Mode ── */
+body.light .ready-to-begin-overlay,
+body.light .paused-overlay {
+  background-color: rgba(241, 245, 249, 0.85) !important; /* slate-100 base with opacity */
+  backdrop-filter: blur(8px) !important;
+}
+
+body.light .ready-to-begin-overlay p.text-white,
+body.light .paused-overlay p.text-white {
+  color: rgb(15, 23, 42) !important; /* slate-900 */
+}
+
+body.light .ready-to-begin-overlay p.text-slate-400,
+body.light .paused-overlay p.text-slate-400 {
+  color: rgb(71, 85, 105) !important; /* slate-600 */
+}
+
+/* Finished overlay / modal in light mode */
+body.light .finished-overlay {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+body.light .finished-modal {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light .finished-modal h2.text-white {
+  color: rgb(15, 23, 42) !important;
+}
+
+body.light .finished-modal p.text-slate-400 {
+  color: rgb(71, 85, 105) !important;
+}
+
+body.light .finished-modal .bg-white\/4 {
+  background-color: rgb(248, 250, 252) !important; /* slate-50 */
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+body.light .finished-modal p.text-slate-500 {
+  color: rgb(100, 116, 139) !important; /* slate-500 */
+}
+
+/* ── 60. Theme Toggle Button in Light Mode ── */
+body.light header button[aria-label="Toggle theme"] {
+  color: rgb(71, 85, 105) !important; /* slate-600 */
+}
+
+body.light header button[aria-label="Toggle theme"] svg {
+  stroke: rgb(71, 85, 105) !important;
+}
+
+body.light header button[aria-label="Toggle theme"]:hover svg {
+  stroke: rgb(79, 70, 229) !important;
+}
+
+/* ── 61. Settings Toggle OFF & Hover Animation Adjustments in Light Mode ── */
+/* Specific toggle off state in light mode to override general bg-white/10 */
+body.light button.rounded-full.bg-white\/10 {
+  background-color: rgb(226, 232, 240) !important; /* slate-200 — visible subtle grey */
+  border: 1px solid rgb(203, 213, 225) !important; /* slate-300 border for crisp definition */
+}
+
+body.light button.rounded-full.bg-white\/10 > span {
+  background-color: rgb(255, 255, 255) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Hover state for buttons/chips (e.g. Line Width, Font Size options) */
+body.light button.text-slate-400:hover {
+  color: rgb(79, 70, 229) !important; /* Indigo text hover */
+}
+
+/* Preset Cards hover in Settings */
+body.light .border-white\/10.bg-white\/4:hover {
+  border-color: rgba(79, 70, 229, 0.25) !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.04) !important;
+}
+
+body.light .hover\:border-white\/20:hover {
+  border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+body.light .hover\:text-white:hover {
+  color: rgb(15, 23, 42) !important;
+}
+
+body.light .hover\:text-slate-200:hover {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* Metric card containers hover in light mode */
+body.light .bg-white\/2:hover {
+  background-color: rgba(79, 70, 229, 0.04) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* ── 62. Transparent Indigo Buttons & Disabled States in Light Mode ── */
+/* Prevent transparent buttons (like bg-indigo-500/10) from matching solid button rules and getting white text */
+body.light button[class*="bg-indigo-500/"] {
+  color: rgb(79, 70, 229) !important; /* Keep readable indigo text */
+}
+
+body.light button[class*="bg-indigo-500/"]:hover {
+  color: rgb(255, 255, 255) !important; /* White on solid hover bg */
+}
+
+/* Disabled button state in light mode — clean readable grey on slate base */
+body.light button:disabled {
+  background-color: rgb(226, 232, 240) !important; /* slate-200 */
+  color: rgb(148, 163, 184) !important; /* slate-400 */
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: none !important;
+  opacity: 0.8 !important;
+}
+
+/* ── 63. Paragraph Summary Flow (Roadmaps) Modal in Light Mode ── */
+body.light .paragraph-summary-overlay {
+  background-color: rgba(241, 245, 249, 0.85) !important; /* slate-100 base with opacity */
+  backdrop-filter: blur(8px) !important;
+}
+
+body.light .paragraph-summary-modal {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light .paragraph-summary-modal h2.text-white {
+  color: rgb(15, 23, 42) !important; /* slate-900 */
+}
+
+body.light .paragraph-summary-modal p.text-slate-400 {
+  color: rgb(71, 85, 105) !important; /* slate-600 */
+}
+
+body.light .paragraph-summary-flow-card {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+  border-color: rgba(79, 70, 229, 0.15) !important;
+}
+
+body.light .paragraph-summary-chip {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: rgb(15, 23, 42) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+
+
+
+

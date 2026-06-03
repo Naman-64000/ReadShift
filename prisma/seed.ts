@@ -156,6 +156,7 @@ async function main() {
             source: "seed",
             status: quality.status,
             quality_score: quality.quality_score,
+            title: quality.title,
             topic_key: quality.topic_key,
             hash: crypto.createHash("sha256").update(`${domain}-${level}-${i}-${body}`).digest("hex"),
             questions: {

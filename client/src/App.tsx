@@ -9,6 +9,15 @@ import Toast from "@/components/shared/Toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { useUIStore, useUserStore } from "@/store";
 
+// Scroll to top whenever the route changes
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [pathname]);
+  return null;
+}
+
 // Screens
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import CalibrationScreen from "@/screens/CalibrationScreen";
@@ -24,6 +33,7 @@ import MetronomeDrillScreen from "@/screens/MetronomeDrillScreen";
 
 export default function App() {
   const isFullscreen = useUIStore((s) => s.isFullscreen);
+  const theme = useUIStore((s) => s.theme);
   const fetchProfile = useUserStore((s) => s.fetchProfile);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -69,10 +79,15 @@ export default function App() {
     }
   }, [session, fetchProfile]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   if (loading) return <LoadingSpinner fullPage />;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <div className="min-h-screen bg-[rgb(var(--bg))] text-[rgb(var(--text))] flex flex-col">
+      <ScrollToTop />
       <div className="flex-grow">
         {!isFullscreen && session && <Navbar />}
 

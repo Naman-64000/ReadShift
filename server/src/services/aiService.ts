@@ -24,12 +24,26 @@ export const aiService = {
       const model = genAI.getGenerativeModel({ 
         model: "gemini-3.1-flash-lite",
         generationConfig: {
-          temperature: dynamicTemperature
+          temperature: dynamicTemperature,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: SchemaType.OBJECT,
+            properties: {
+              body: { type: SchemaType.STRING },
+              title: { type: SchemaType.STRING },
+              paragraph_roadmaps: {
+                type: SchemaType.ARRAY,
+                items: { type: SchemaType.STRING }
+              }
+            },
+            required: ["body", "title", "paragraph_roadmaps"]
+          } as any
         }
       });
 
       const prompt = `
         You are an elite professor designing extremely challenging reading comprehension passages to increase reading speed, focus, and comprehension.
+        
         Write a single, highly dense, analytical passage at expert reading comprehension level (highly challenging difficulty for speed and retention training).
         Domain: ${domain}.
         
@@ -45,10 +59,10 @@ export const aiService = {
         - **NEVER** start the very first sentence of the passage with generic formulas like "The [noun]...", "The theory...", "The debate...", or "The history...". Instead, inject structural variety from the first word (e.g., start with a subordinating concession like "Although...", an adverbial phrase like "Historically...", a conditional clause, or a direct counter-hypothesis).
         - **BANNED TRANSITIONS:** You are strictly forbidden from using transitional cliches such as "Furthermore", "Moreover", "Additionally", "In addition", or "Consequently". Instead, rely on natural logical flow and contextual progression.
         - Each paragraph must start with a completely different grammatical construction.
+        - Structure: MUST be structurally divided into exactly 3, 4, 5, or 6 paragraphs with clear thematic breaks.
         
         Core Passage DO's:
         - Word count: MUST be strictly between 460 and 580 words.
-        - Structure: MUST be structurally divided into exactly 3, 4, 5, or 6 paragraphs with clear thematic breaks.
         - Style: Dense, highly objective, analytical, and scholarly.
         - Tension: The passage must examine a central intellectual debate, paradox, or theoretical conflict.
         
@@ -57,22 +71,39 @@ export const aiService = {
         - DO NOT write a dry, passive list of facts. It must be analytical and conceptual.
         - DO NOT include any introductory titles, headings, greetings, preambles, or conversational transitions.
         
-        Respond with ONLY the passage text. Do not include any title, markdown headers, or preambles.
+        Core Title Generation Rules:
+        - Generate a highly professional, academic, concise 4-8 word title representing the core focus or dialectical tension of the passage (e.g., "The Paradigmatic Shift in Late-Antique Epistemology"). Do not include quotes, markdown formatting, or conversational text.
+        
+        Core Paragraph Roadmaps Generation Rules:
+        - For each paragraph in the generated passage, you MUST generate a high-quality 3-4 word keyword flow summary separated by arrows (e.g., "Hypothesis → Methodology → Control Group → Result").
+        - The flow summary must capture the logical transition or thematic pivot of that specific paragraph in 3 or 4 concise words or short phrases connected by arrows.
+        - The number of elements in the 'paragraph_roadmaps' array MUST EXACTLY match the number of paragraphs in the 'body' text.
+        
+        Generate the passage, its title, and the corresponding paragraph roadmaps, and output them in the required JSON format.
       `;
 
       const result = await model.generateContent(prompt);
-      const body = result.response.text().trim();
+      const parsed = JSON.parse(result.response.text()) as { body: string; title: string; paragraph_roadmaps: string[] };
+      const body = parsed.body.trim();
+      const paragraph_roadmaps = parsed.paragraph_roadmaps.map(r => r.trim());
       const wordCount = body.split(/\s+/).filter(Boolean).length;
 
-      if (wordCount < 420 || wordCount > 600) {
+      if (wordCount < 400 || wordCount > 620) {
         throw new Error("Generated passage outside expected word range");
+      }
+
+      const paraCount = body.split(/\n\s*\n/g).filter(Boolean).length;
+      if (paraCount !== paragraph_roadmaps.length) {
+        throw new Error(`Paragraph count (${paraCount}) does not match roadmaps count (${paragraph_roadmaps.length})`);
       }
 
       return {
         body,
+        title: parsed.title ? parsed.title.trim().replace(/['"“”]/g, "") : "Academic Reading Passage",
         word_count: wordCount,
         domain,
         generated_by: "gemini-3.1-flash-lite",
+        paragraph_roadmaps,
       };
     } catch (err) {
       logger.error({ err, domain }, "Gemini passage generation failed");
