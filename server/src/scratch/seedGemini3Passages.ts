@@ -124,11 +124,12 @@ async function main() {
 
       // 3. Evaluate Quality using our strict new parameters
       // We pass source: "gemini" to utilize the model trust bonus
-      const quality = evaluatePassageQuality({
+      const quality = await evaluatePassageQuality({
         body: passageData.body,
         word_count: passageData.word_count,
         questionCount: questionsData.length,
         source: "gemini", 
+        title: passageData.title,
       });
 
       // 4. Save Passage to PostgreSQL
@@ -145,6 +146,7 @@ async function main() {
           status: quality.status === "ready" ? "ready" : "draft",
           topic_key: quality.topic_key,
           paragraph_roadmaps: passageData.paragraph_roadmaps,
+          skim_highlights: passageData.skim_highlights,
         },
       });
 

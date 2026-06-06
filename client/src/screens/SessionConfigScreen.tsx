@@ -6,6 +6,7 @@ import { useDashboardStore } from "@/store";
 import { useUserStore } from "@/store";
 import WpmSlider from "@/components/session/WpmSlider";
 import Button from "@/components/shared/Button";
+import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { DOMAINS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/apiClient";
@@ -24,7 +25,7 @@ export default function SessionConfigScreen() {
   );
   const [calibratedWpm, setCalibratedWpm] = useState<number | null>(null);
   
-  const chunkSize = prefs?.chunk_size ?? 3;
+  const chunkSize = prefs?.chunk_size ?? 2;
   const fadingEnabled = prefs?.fading_enabled ?? false;
   const guideEnabled = prefs?.guide_enabled ?? true;
 
@@ -83,6 +84,7 @@ export default function SessionConfigScreen() {
   }, [summary?.recommended_wpm]);
 
   const handleStart = async () => {
+    if (isStarting) return;
     setIsStarting(true);
     setError(null);
     await startSession({
@@ -91,6 +93,7 @@ export default function SessionConfigScreen() {
       fading_enabled: fadingEnabled,
       guide_enabled: guideEnabled,
       domain: selectedDomain === "random" ? undefined : selectedDomain,
+      passage_id: passageId,
     });
     setIsStarting(false);
     // Only navigate if no error
@@ -100,12 +103,40 @@ export default function SessionConfigScreen() {
 
   const allowedDomains = prefs?.domains ?? [];
   const drillDomain = location.state?.drillDomain as string | undefined;
+  const passageId = location.state?.passageId as string | undefined;
+  const fromDashboard = location.state?.fromDashboard as boolean | undefined;
+  
   const filteredDomains = allowedDomains.length > 0
     ? DOMAINS.filter((d) => allowedDomains.includes(d.value) || d.value === drillDomain)
     : DOMAINS;
 
+  const prefDomains = allowedDomains.length > 0
+    ? allowedDomains
+    : ["business", "science", "history", "abstract", "social"];
+
+  const isPoolExhausted = selectedDomain === "random"
+    ? prefDomains.every((d) => (domainCounts[d] ?? 0) === 0)
+    : (domainCounts[selectedDomain] ?? 0) === 0;
+
+  const showGenerationLoader = isStarting && isPoolExhausted;
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] pt-20 flex items-center justify-center px-4 py-4">
+    <div className="min-h-[calc(100vh-4rem)] pt-20 flex items-center justify-center px-4 py-4 relative w-full">
+      {showGenerationLoader && (
+        <LoadingSpinner
+          fullPage
+          label="All available passages has been consumed, new passage is getting generated now..."
+          labelClassName="text-white"
+        />
+      )}
+      {fromDashboard && (
+        <button
+          onClick={() => navigate("/dashboard", { state: { openPassageId: passageId } })}
+          className="absolute left-4 sm:left-8 md:left-12 lg:left-16 top-24 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+        >
+          ← Back to Dashboard
+        </button>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -132,14 +163,19 @@ export default function SessionConfigScreen() {
         {/* Domain */}
         <div className="space-y-3">
           <h2 className="text-sm font-bold text-[rgb(var(--text))] uppercase tracking-wider px-0.5">Content Domain</h2>
+          {passageId && (
+            <p className="text-xs text-indigo-400 mb-2">Specific passage selected from history. Domain is locked.</p>
+          )}
           <div className="grid grid-cols-3 gap-2.5">
             <button
+              disabled={isStarting || !!passageId}
               onClick={() => setSelectedDomain("random")}
               className={cn(
                 "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5",
                 selectedDomain === "random"
                   ? "border-indigo-500 bg-indigo-500/15 text-[rgb(var(--text))]"
-                  : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]"
+                  : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]",
+                (isStarting || !!passageId) && "opacity-50 cursor-not-allowed"
               )}
             >
               🎲 Surprise Me
@@ -151,12 +187,14 @@ export default function SessionConfigScreen() {
                 <button
                   key={d.value}
                   title={isExhausted ? "All new passages read. Selecting this will recycle a previously read passage." : undefined}
+                  disabled={isStarting || !!passageId}
                   onClick={() => setSelectedDomain(d.value)}
                   className={cn(
                     "rounded-xl border py-3.5 px-3 text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 select-none",
                     selectedDomain === d.value
                       ? "border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-white"
-                      : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]"
+                      : "border-white/10 bg-white/4 text-slate-400 hover:border-indigo-400/40 hover:text-[rgb(var(--text))]",
+                    (isStarting || (!!passageId && selectedDomain !== d.value)) && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   <span>{d.emoji}</span>

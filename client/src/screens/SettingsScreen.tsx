@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useUserStore } from "@/store";
+import { useUserStore, useDashboardStore } from "@/store";
 import Button from "@/components/shared/Button";
 import { DOMAINS, CHUNK_SIZES, FONT_SIZES, COL_WIDTHS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -16,11 +15,17 @@ const MCQ_TIMER_VALUES = [
 export default function SettingsScreen() {
   const navigate = useNavigate();
   const { user, preferences, updatePreferences, fetchProfile, isLoading, error } = useUserStore();
+  const summary = useDashboardStore((s) => s.summary);
+  const fetchSummary = useDashboardStore((s) => s.fetchSummary);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserPreferences | null>(null);
   const [hoveredPreview, setHoveredPreview] = useState<string | null>(null);
   const [allowHover, setAllowHover] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
 
   useEffect(() => {
     let initialCoords: { x: number; y: number } | null = null;
@@ -51,40 +56,73 @@ export default function SettingsScreen() {
   }, [user, preferences, fetchProfile]);
 
   useEffect(() => {
+    if (!summary) {
+      void fetchSummary();
+    }
+  }, [summary, fetchSummary]);
+
+  useEffect(() => {
     if (preferences) setDraft(preferences);
   }, [preferences]);
 
-  const handleSignOut = async () => {
-    localStorage.removeItem("readshift_dev_user");
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
+
 
   const updateDraft = useCallback((patch: Partial<UserPreferences>) => {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 
+  const handleVerifyKey = async () => {
+    if (!draft) return;
+    const key = draft.gemini_api_key;
+    if (!key || key.trim() === "") {
+      setLocalError("Please enter an API key");
+      setVerificationSuccess(false);
+      return;
+    }
+    setVerifying(true);
+    setLocalError(null);
+    setVerificationSuccess(null);
+    try {
+      await updatePreferences({ gemini_api_key: key });
+      setVerificationSuccess(true);
+    } catch (err: any) {
+      setVerificationSuccess(false);
+      const errMsg = err.message || "Failed to verify key";
+      setLocalError(errMsg);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleSave = useCallback(async () => {
     if (!draft || !preferences) return;
     setSaving(true);
-    await updatePreferences({
-      domains: draft.domains,
-      col_width: draft.col_width,
-      font_size_px: draft.font_size_px,
-      chunk_size: draft.chunk_size,
-      guide_enabled: draft.guide_enabled,
-      fading_enabled: draft.fading_enabled,
-      mcq_timer: draft.mcq_timer ?? 0,
-      highlight_intensity: draft.highlight_intensity ?? "moderate",
-      auto_center_scroll: draft.auto_center_scroll ?? true,
-      laap_enabled: draft.laap_enabled ?? true,
-      skim_enabled: draft.skim_enabled ?? true,
-      mcqs_enabled: draft.mcqs_enabled ?? true,
-      progress_bar_enabled: draft.progress_bar_enabled ?? true,
-      timer_enabled: draft.timer_enabled ?? true,
-      roadmaps_enabled: draft.roadmaps_enabled ?? true,
-    });
-    setSaving(false);
+    setLocalError(null);
+    try {
+      await updatePreferences({
+        domains: draft.domains,
+        col_width: draft.col_width,
+        font_size_px: draft.font_size_px,
+        chunk_size: draft.chunk_size,
+        guide_enabled: draft.guide_enabled,
+        fading_enabled: draft.fading_enabled,
+        mcq_timer: draft.mcq_timer ?? 0,
+        highlight_intensity: draft.highlight_intensity ?? "moderate",
+        auto_center_scroll: draft.auto_center_scroll ?? true,
+        laap_enabled: draft.laap_enabled ?? true,
+        skim_enabled: draft.skim_enabled ?? true,
+        mcqs_enabled: draft.mcqs_enabled ?? true,
+        progress_bar_enabled: draft.progress_bar_enabled ?? true,
+        timer_enabled: draft.timer_enabled ?? true,
+        roadmaps_enabled: draft.roadmaps_enabled ?? true,
+        gemini_api_key: draft.gemini_api_key,
+      });
+      setVerificationSuccess(null);
+    } catch (err: any) {
+      setLocalError(err.message || "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
   }, [draft, preferences, updatePreferences]);
 
   if ((!user || !preferences) && isLoading) {
@@ -123,7 +161,7 @@ export default function SettingsScreen() {
     (draft?.highlight_intensity === "moderate" || draft?.highlight_intensity === "intense") &&
     draft?.auto_center_scroll === true &&
     draft?.laap_enabled === true &&
-    draft?.chunk_size === 3 &&
+    draft?.chunk_size === 2 &&
     (draft?.skim_enabled ?? true) === true &&
     (draft?.progress_bar_enabled ?? true) === true &&
     (draft?.timer_enabled ?? true) === true &&
@@ -135,7 +173,7 @@ export default function SettingsScreen() {
     draft?.highlight_intensity === "none" &&
     draft?.auto_center_scroll === false &&
     draft?.laap_enabled === false &&
-    draft?.chunk_size === 4 &&
+    draft?.chunk_size === 3 &&
     draft?.skim_enabled === false &&
     draft?.progress_bar_enabled === false &&
     draft?.timer_enabled === false &&
@@ -209,7 +247,7 @@ export default function SettingsScreen() {
                   highlight_intensity: "intense",
                   auto_center_scroll: true,
                   laap_enabled: true,
-                  chunk_size: 3,
+                  chunk_size: 2,
                   skim_enabled: true,
                   progress_bar_enabled: true,
                   timer_enabled: true,
@@ -265,7 +303,7 @@ export default function SettingsScreen() {
                   highlight_intensity: "none",
                   auto_center_scroll: false,
                   laap_enabled: false,
-                  chunk_size: 4,
+                  chunk_size: 3,
                   skim_enabled: false,
                   progress_bar_enabled: false,
                   timer_enabled: false,
@@ -328,7 +366,7 @@ export default function SettingsScreen() {
           </div>
           <button
             onClick={() => setShowManualModal(true)}
-            className="px-4 py-2 shrink-0 rounded-xl text-xs font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all cursor-pointer shadow-lg shadow-indigo-500/5"
+            className="px-4 py-2 shrink-0 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:underline dark:hover:bg-indigo-500 dark:hover:text-white transition-all cursor-pointer shadow-lg shadow-indigo-500/5"
           >
             Open Manual
           </button>
@@ -390,7 +428,7 @@ export default function SettingsScreen() {
               onMouseLeave={() => setHoveredPreview(null)}
             >
               {hoveredPreview === "fontRow" && <FontRowPreview />}
-              <p className="text-sm font-medium text-white cursor-help self-start">Font Size</p>
+              <p className="text-sm font-medium text-white cursor-help self-start">Font Size of Passage</p>
               <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:gap-2 sm:w-auto">
                 {FONT_SIZES.map((fs) => (
                   <button
@@ -403,7 +441,7 @@ export default function SettingsScreen() {
                         : "bg-white/5 border-white/5 text-slate-400 hover:text-white"
                     )}
                   >
-                    {fs.value}px
+                    {fs.value === 12 ? "12px (CAT)" : `${fs.value}px`}
                   </button>
                 ))}
               </div>
@@ -782,19 +820,81 @@ export default function SettingsScreen() {
           </div>
         </section>
 
+        {/* Custom API Key */}
+        <section className="space-y-4">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            Custom AI Generation (Gemini)
+          </h2>
+          <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400 font-medium">
+                Enter your personal Gemini API Key. When you have completed all built-in passages, ReadShift will generate brand-new, expert-level reading comprehension passages on-the-fly using your API Key.
+              </p>
+              <p className="text-[10px] text-slate-500 italic">
+                If left blank, the server's default developer key will be triggered automatically.
+              </p>
+            </div>
+
+            <div className="relative flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  value={draft.gemini_api_key || ""}
+                  onChange={(e) => updateDraft({ gemini_api_key: e.target.value })}
+                  placeholder="API Key (AIzaSy...)"
+                  className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-4 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono tracking-wide"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none"
+                >
+                  {showApiKey ? (
+                    <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleVerifyKey}
+                isLoading={verifying}
+                className="shrink-0 text-xs py-2 px-3 border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400 font-bold"
+              >
+                Verify Key
+              </Button>
+            </div>
+
+            {verificationSuccess === true && (
+              <p className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                ✓ Key verified & loaded successfully.
+              </p>
+            )}
+
+            {localError && (
+              <p className="text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl">
+                ⚠ {localError}
+              </p>
+            )}
+          </div>
+        </section>
+
         {/* Actions */}
         <section className="space-y-3 pt-6 border-t border-white/5">
           <Button className="w-full" onClick={handleSave} isLoading={saving} disabled={!isDirty}>
             Save Changes
           </Button>
-          {isDevUser && (
-            <p className="text-center text-xs text-slate-500">Development user session is active.</p>
-          )}
           <Button variant="secondary" className="w-full" onClick={() => navigate("/calibration")}>
-            🔄 Retake WPM Calibration
-          </Button>
-          <Button variant="ghost" className="w-full text-red-400 hover:text-red-300 hover:bg-red-400/5" onClick={handleSignOut}>
-            Sign Out
+            {summary && summary.baseline_wpm === 0 ? "Take WPM Calibration" : "🔄 Retake WPM Calibration"}
           </Button>
         </section>
       </motion.div>
@@ -807,170 +907,170 @@ export default function SettingsScreen() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-[#0b101c]/95 border border-indigo-500/20 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative"
+              className="bg-rs-surface border border-rs-border/20 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative"
             >
               {/* Top Accent Line */}
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
               
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-slate-950/40">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-rs-border/20 bg-rs-surface2/30">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">📖</span>
                   <div>
-                    <h2 className="text-base font-black text-white">ReadShift Cognitive Manual</h2>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Scientific Reading & Pacing Framework</p>
+                    <h2 className="text-base font-black text-rs-text">ReadShift Cognitive Manual</h2>
+                    <p className="text-[10px] text-rs-muted font-bold uppercase tracking-wider">Scientific Reading & Pacing Framework</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowManualModal(false)}
-                  className="h-8 w-8 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer"
+                  className="h-8 w-8 rounded-xl border border-rs-border/15 hover:border-rs-border/30 bg-rs-surface2/50 flex items-center justify-center text-rs-muted hover:text-rs-text transition-all cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
-
+ 
               {/* Scrollable Content */}
               <div className="overflow-y-auto p-6 md:p-8 space-y-6 flex-1 scrollbar-thin scrollbar-thumb-indigo-500/25">
                 <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400">The Core Framework</h3>
-                  <p className="text-[11px] text-slate-300 leading-relaxed italic">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">The Core Framework</h3>
+                  <p className="text-[11px] text-rs-text/80 leading-relaxed italic">
                     "Don't read passages just to finish them; read them to extract the purpose of each paragraph, build a passage map, understand the structure, and critically engage with the author's arguments."
                   </p>
                 </div>
-
+ 
                 <div className="space-y-6">
                   {/* Point 1 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">1</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">1</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">First Understand WHY You Are Reading</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">First Understand WHY You Are Reading</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Do not read merely to absorb passive knowledge. Read specifically for CAT/GMAT level prep. Focus on improving deep comprehension, interpretation skills under pacing, getting comfortable with dense unfamiliar topics, and mastering global and local reading comprehension questions.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Provides highly-dense academic passages in business, humanities, and sciences paired with GMAT-calibrated question blueprints (e.g. main idea, inference, tone, unstated assumptions) to match target exam conditions perfectly.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Provides highly-dense academic passages in business, humanities, and sciences paired with GMAT-calibrated question blueprints (e.g. main idea, inference, tone, unstated assumptions) to match target exam conditions perfectly.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 2 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">2</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">2</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Quality Over Quantity</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Quality Over Quantity</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Avoid asking how many articles you should read. Focus entirely on how well you are reading them. One highly focused, deeply analyzed passage is infinitely better than rushing through several articles without critical engagement.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Rather than encouraging endless scrolling, ReadShift saves your comprehensive session history in a clean reading log to monitor your deliberate progress, comfort thresholds, and error rates.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Rather than encouraging endless scrolling, ReadShift saves your comprehensive session history in a clean reading log to monitor your deliberate progress, comfort thresholds, and error rates.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 3 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">3</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">3</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Ignore Generic "Speed Reading"</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Ignore Generic "Speed Reading"</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Do NOT work strictly on speed. Work on understanding, active comprehension, and deep interpretation. Speed is a natural, secondary byproduct of ocular habits and mental mapping comfort—it will improve automatically later.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Our Linguistic-Aware Adaptive Pacing (LAAP) does not force an artificial, flat speed. It distributes highlight durations dynamically by evaluating word complexity, syllable weights, and sentence transitions, keeping you at a highly receptive, natural rhythm.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Our Linguistic-Aware Adaptive Pacing (LAAP) does not force an artificial, flat speed. It distributes highlight durations dynamically by evaluating word complexity, syllable weights, and sentence transitions, keeping you at a highly receptive, natural rhythm.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 4 & 5 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">4</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">4</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">The Two-Round Pacing Routine</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">The Two-Round Pacing Routine</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Break your session into two distinct phases: Round 1 (Basic Comprehension), where you follow the passage structure and paragraph flows, and Round 2 (Deep Engagement), where you unpack dense sentences, check vocabulary, and dissect reasoning arguments. Spend roughly 25-30 minutes per passage set.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Round 1 is guided strictly by our pacing highlighting line. Round 2 is fully automated during the post-reading check, where you receive extensive explanations detailing why correct and incorrect distractors are structured as logical traps.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Round 1 is guided strictly by our pacing highlighting line. Round 2 is fully automated during the post-reading check, where you receive extensive explanations detailing why correct and incorrect distractors are structured as logical traps.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 6 & 8 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">5</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">5</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Create a Passage Map & Compress Summaries</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Create a Passage Map & Compress Summaries</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           After every single paragraph, ask: "Why did the author include this paragraph?" instead of "What did I just read?" Write a highly-compressed 3-5 word summary of the paragraph's core purpose to build a mental structure map.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Paragraph Roadmaps automate this training! At the end of every paragraph, ReadShift pauses pacing silently for 5 seconds to overlay a high-retention 3-4 word keyword transition summary, teaching your brain structural mapping.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Paragraph Roadmaps automate this training! At the end of every paragraph, ReadShift pauses pacing silently for 5 seconds to overlay a high-retention 3-4 word keyword transition summary, teaching your brain structural mapping.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 7 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">6</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">6</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Find the "Hero Sentence"</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Find the "Hero Sentence"</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Not all lines are equally important. Locate the single "Hero Sentence" that carries the paragraph's primary logical purpose (often the first structural claim sentence), and ignore excessive descriptive details during the first pass.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Structural Skimming (15s Warmup) dims the background and highlights only paragraph-initial sentences before pacing begins, training your eyes to instantly latch onto "Hero Sentences."
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Structural Skimming (15s Warmup) dims the background and highlights only paragraph-initial sentences before pacing begins, training your eyes to instantly latch onto "Hero Sentences."
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 9 & 10 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">7</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">7</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Track Connections & Don't Get Stuck</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Track Connections & Don't Get Stuck</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Always analyze how each paragraph connects back to the previous one. If a sentence becomes dense and confusing, do not stall or re-read endlessly. Keep moving forward, holding the macro-structure together in your mind.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> 1.5s Regression Fading physically fades words after they are paced. Cognitive eye-tracking research shows visual regressions (backtracking) waste up to 15% of reading speed. Fading stops this habit, keeping you anchored to the global picture.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> 1.5s Regression Fading physically fades words after they are paced. Cognitive eye-tracking research shows visual regressions (backtracking) waste up to 15% of reading speed. Fading stops this habit, keeping you anchored to the global picture.
                         </div>
                       </div>
                     </div>
                   </div>
-
+ 
                   {/* Point 11 to 15 */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-white/2 hover:border-indigo-500/15 transition-all">
+                  <div className="p-5 rounded-2xl border border-rs-border/15 bg-rs-surface2/30 hover:border-indigo-500/15 transition-all">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400">8</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400">8</span>
                       <div className="space-y-2">
-                        <h4 className="text-sm font-black text-white">Practice Skepticism & Challenge the Author</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-black text-rs-text">Practice Skepticism & Challenge the Author</h4>
+                        <p className="text-xs text-rs-muted leading-relaxed">
                           Do NOT blindly agree with the text. Practice reasoning skepticism: What unstated assumptions is the author relying on? What evidence is missing? What would weaken or strengthen their claim? Mentally debate the author.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-slate-300 font-medium">
-                          💡 <span className="font-bold text-indigo-400">ReadShift Advantage:</span> Our comprehension MCQs explicitly integrate GMAT distractor traps (Out of Scope, Extreme Language, True but Irrelevant, Direct Contradiction, Misapplied Relationship), training your mind to actively eliminate logical traps and spot logical flaws.
+                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
+                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Our comprehension MCQs explicitly integrate GMAT distractor traps (Out of Scope, Extreme Language, True but Irrelevant, Direct Contradiction, Misapplied Relationship), training your mind to actively eliminate logical traps and spot logical flaws.
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
+ 
               {/* Sticky Footer */}
-              <div className="flex justify-end items-center px-6 py-4 border-t border-white/5 bg-slate-950/40 gap-3">
+              <div className="flex justify-end items-center px-6 py-4 border-t border-rs-border/20 bg-rs-surface2/30 gap-3">
                 <Button
                   onClick={() => setShowManualModal(false)}
                   className="px-5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2 cursor-pointer shadow-lg shadow-indigo-500/10"
@@ -982,6 +1082,7 @@ export default function SettingsScreen() {
           </div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
@@ -991,22 +1092,23 @@ function TextFadingPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">Fading Effect</div>
       <div className="space-y-2.5">
         <motion.div
           animate={{ opacity: [1, 0.2, 0.2] }}
           transition={{ duration: 4, repeat: Infinity, times: [0, 0.2, 1] }}
-          className="h-2 w-full bg-slate-500 rounded-full"
+          className="h-2 w-full rounded-full"
+          style={{ backgroundColor: "var(--hyphen-inactive)" }}
         />
         <motion.div
-          animate={{ opacity: [1, 1, 0.2], backgroundColor: ["#64748b", "#818cf8", "#64748b"] }}
+          animate={{ opacity: [1, 1, 0.2], backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-active)", "var(--hyphen-inactive)"] }}
           transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1] }}
-          className="h-2 w-5/6 rounded-full shadow-[0_0_8px_rgba(129,140,248,0.5)]"
+          className="h-2 w-5/6 rounded-full"
         />
         <motion.div
-          animate={{ opacity: [1, 1, 1], backgroundColor: ["#64748b", "#64748b", "#818cf8"] }}
+          animate={{ opacity: [1, 1, 1], backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-inactive)", "var(--hyphen-active)"] }}
           transition={{ duration: 4, repeat: Infinity, times: [0, 0.5, 1] }}
           className="h-2 w-4/6 rounded-full"
         />
@@ -1020,14 +1122,14 @@ function PacingGuidePreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">Pacing Guide</div>
       <div className="relative space-y-2.5 py-1">
-        <div className="h-2 w-full bg-slate-600 rounded-full" />
-        <div className="h-2 w-5/6 bg-slate-600 rounded-full" />
-        <div className="h-2 w-4/6 bg-slate-600 rounded-full" />
-        <div className="h-2 w-full bg-slate-600 rounded-full" />
+        <div className="h-2 w-full rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
+        <div className="h-2 w-5/6 rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
+        <div className="h-2 w-4/6 rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
+        <div className="h-2 w-full rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
         
         {/* Animated Line */}
         <motion.div
@@ -1046,7 +1148,7 @@ function WidthRowPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none flex flex-col items-center"
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none flex flex-col items-center settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         Line Width Demo
@@ -1069,7 +1171,7 @@ function FontRowPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         Dynamic Resizing
@@ -1090,12 +1192,25 @@ function ChunkRowPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-4 font-bold uppercase tracking-wider text-center">
         Highlight Density
       </div>
       <div className="space-y-4">
+        <div>
+          <div className="text-[9px] text-slate-500 mb-1 text-center">2 Words</div>
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {Array.from({length: 4}).map((_, i) => (
+              <motion.div
+                key={i}
+                className="h-2 w-6 rounded-full"
+                animate={{ backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-active)", "var(--hyphen-active)", "var(--hyphen-inactive)", "var(--hyphen-inactive)"] }}
+                transition={{ duration: 2, repeat: Infinity, times: [0, 0.05, 0.45, 0.5, 1], delay: Math.floor(i/2) * 1 }}
+              />
+            ))}
+          </div>
+        </div>
         <div>
           <div className="text-[9px] text-slate-500 mb-1 text-center">3 Words</div>
           <div className="flex flex-wrap gap-1.5 justify-center">
@@ -1103,21 +1218,8 @@ function ChunkRowPreview() {
               <motion.div
                 key={i}
                 className="h-2 w-6 rounded-full"
-                animate={{ backgroundColor: ["#475569", "#818cf8", "#818cf8", "#475569", "#475569"] }}
+                animate={{ backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-active)", "var(--hyphen-active)", "var(--hyphen-inactive)", "var(--hyphen-inactive)"] }}
                 transition={{ duration: 2, repeat: Infinity, times: [0, 0.05, 0.45, 0.5, 1], delay: Math.floor(i/3) * 1 }}
-              />
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[9px] text-slate-500 mb-1 text-center">4 Words</div>
-          <div className="flex flex-wrap gap-1.5 justify-center">
-            {Array.from({length: 8}).map((_, i) => (
-              <motion.div
-                key={i}
-                className="h-2 w-6 rounded-full"
-                animate={{ backgroundColor: ["#475569", "#818cf8", "#818cf8", "#475569", "#475569"] }}
-                transition={{ duration: 2, repeat: Infinity, times: [0, 0.05, 0.45, 0.5, 1], delay: Math.floor(i/4) * 1 }}
               />
             ))}
           </div>
@@ -1132,12 +1234,12 @@ function MCQTimerPreview({ value }: { value: number }) {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         MCQ Timer Preview
       </div>
-      <div className="p-3 bg-white/4 rounded-lg border border-white/5 space-y-2 text-center">
+      <div className="p-3 bg-white/4 rounded-lg border border-white/5 space-y-2 text-center settings-preview-inner">
         {value === 0 ? (
           <>
             <div className="text-xl font-black text-indigo-400">♾️</div>
@@ -1191,7 +1293,7 @@ function HighlightIntensityPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center h-4">
         {headings[level]}
@@ -1232,29 +1334,29 @@ function AutoCenterPreview({ enabled }: { enabled: boolean }) {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         {enabled ? "Auto-Center Focus" : "Free Will Scroll"}
       </div>
-      <div className="h-24 bg-[#090d16] border border-white/5 rounded-lg overflow-hidden flex flex-col justify-center relative px-3 py-2">
+      <div className="h-24 bg-[#090d16] border border-white/5 rounded-lg overflow-hidden flex flex-col justify-center relative px-3 py-2 settings-preview-inner autocenter-preview-box">
         {enabled ? (
           // Centered mode demo
           <div className="space-y-2 relative">
-            <div className="h-1.5 w-full bg-slate-700/40 rounded-full" />
+            <div className="h-1.5 w-full rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
             <motion.div
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
               className="h-1.5 w-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)]"
             />
-            <div className="h-1.5 w-full bg-slate-700/40 rounded-full" />
+            <div className="h-1.5 w-full rounded-full" style={{ backgroundColor: "var(--hyphen-inactive)" }} />
           </div>
         ) : (
           // Free will mode demo
           <div className="space-y-2">
             <motion.div
               animate={{ 
-                backgroundColor: ["#818cf8", "#475569", "#475569", "#818cf8"],
+                backgroundColor: ["var(--hyphen-active)", "var(--hyphen-inactive)", "var(--hyphen-inactive)", "var(--hyphen-active)"],
                 boxShadow: ["0 0 8px rgba(99,102,241,0.5)", "none", "none", "0 0 8px rgba(99,102,241,0.5)"]
               }}
               transition={{ duration: 4, repeat: Infinity, times: [0, 0.33, 0.66, 1] }}
@@ -1262,7 +1364,7 @@ function AutoCenterPreview({ enabled }: { enabled: boolean }) {
             />
             <motion.div
               animate={{ 
-                backgroundColor: ["#475569", "#818cf8", "#475569", "#475569"],
+                backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-active)", "var(--hyphen-inactive)", "var(--hyphen-inactive)"],
                 boxShadow: ["none", "0 0 8px rgba(99,102,241,0.5)", "none", "none"]
               }}
               transition={{ duration: 4, repeat: Infinity, times: [0, 0.33, 0.66, 1] }}
@@ -1270,7 +1372,7 @@ function AutoCenterPreview({ enabled }: { enabled: boolean }) {
             />
             <motion.div
               animate={{ 
-                backgroundColor: ["#475569", "#475569", "#818cf8", "#475569"],
+                backgroundColor: ["var(--hyphen-inactive)", "var(--hyphen-inactive)", "var(--hyphen-active)", "var(--hyphen-inactive)"],
                 boxShadow: ["none", "none", "0 0 8px rgba(99,102,241,0.5)", "none"]
               }}
               transition={{ duration: 4, repeat: Infinity, times: [0, 0.33, 0.66, 1] }}
@@ -1293,12 +1395,12 @@ function LaapPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">Adaptive Pacing (LAAP)</div>
       <div className="space-y-3">
         {/* Simple vs Complex chunk comparison */}
-        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5">
+        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5 settings-preview-inner">
           <div className="flex justify-between items-center text-[10px] text-indigo-400 font-semibold">
             <span>"and it is"</span>
             <span>Fast (90ms)</span>
@@ -1312,7 +1414,7 @@ function LaapPreview() {
           </div>
         </div>
         
-        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5">
+        <div className="space-y-1 bg-white/4 rounded-lg p-2 border border-white/5 settings-preview-inner">
           <div className="flex justify-between items-center text-[10px] text-indigo-400 font-semibold">
             <span>"methodological shift"</span>
             <span>Slow (240ms)</span>
@@ -1338,7 +1440,7 @@ function SkimPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3.5 font-bold uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
         <span>👁️</span> Structural Skimming
@@ -1388,12 +1490,12 @@ function HUDBarPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         HUD Progress Bar
       </div>
-      <div className="h-5 w-full bg-white/5 border border-white/8 rounded-lg overflow-hidden flex items-center relative px-2">
+      <div className="h-5 w-full bg-white/5 border border-white/8 rounded-lg overflow-hidden flex items-center relative px-2 settings-preview-inner">
         <motion.div
           animate={{ width: ["0%", "100%", "0%"] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -1421,12 +1523,12 @@ function HUDTimerPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-52 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">
         HUD Pacing Timer
       </div>
-      <div className="h-8 w-full bg-white/5 border border-white/8 rounded-lg flex items-center justify-center font-mono font-bold text-indigo-400 text-sm">
+      <div className="h-8 w-full bg-white/5 border border-white/8 rounded-lg flex items-center justify-center font-mono font-bold text-indigo-400 text-sm settings-preview-inner">
         0:{seconds < 10 ? `0${seconds}` : seconds}
       </div>
       <p className="text-[9px] text-slate-500 text-center mt-2.5 leading-relaxed">
@@ -1441,13 +1543,13 @@ function RoadmapsPreview() {
     <motion.div 
       initial={{ opacity: 0, x: -10, y: "-50%" }}
       animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-64 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none"
+      className="absolute left-full top-1/2 ml-4 w-64 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
     >
       <div className="text-[10px] text-slate-400 mb-3.5 font-bold uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
         <span>🗺️</span> Paragraph Roadmap
       </div>
       
-      <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-3">
+      <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-3 settings-preview-inner">
         <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
           End of Paragraph 1
         </div>

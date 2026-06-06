@@ -8,6 +8,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tone down font-black and font-extrabold to bold (weight 700) for a cleaner, premium aesthetic */
+.font-black,
+.font-extrabold {
+  font-weight: 700 !important;
+}
+
 /* ============================================================
    Dark Mode (default) CSS variables
    ============================================================ */
@@ -134,6 +140,7 @@ body.light .bg-white\/5,
 body.light .bg-white\/3,
 body.light .bg-white\/6,
 body.light .bg-white\/8,
+body.light .bg-white\/2,
 body.light .bg-white\/1 {
   background-color: rgb(255, 255, 255) !important;
   border-color: rgba(15, 23, 42, 0.07) !important;
@@ -264,6 +271,11 @@ body.light .text-rose-300 {
 body.light .text-cyan-400,
 body.light .text-cyan-300 {
   color: rgb(8, 145, 178) !important; /* cyan-600 */
+}
+
+body.light .text-violet-400,
+body.light .text-violet-300 {
+  color: rgb(109, 40, 217) !important; /* violet-700 */
 }
 
 body.light .text-amber-200 {
@@ -623,12 +635,13 @@ body.light .border-slate-700.bg-slate-800 {
 
 /* ── 37. Settings preset cards (Learn Mode / Test Mode) ── */
 /* These have dynamic text-white class applied inline — ensure contrast */
-body.light [class*="border-emerald-500"][class*="bg-emerald-500"] .text-white {
+body.light [class*="border-emerald-500"][class*="bg-emerald-500"] .text-white:not(button):not(a) {
   color: rgb(4, 120, 87) !important;  /* emerald-700 */
 }
-body.light [class*="border-indigo-500"][class*="bg-indigo-500"] .text-white {
+body.light [class*="border-indigo-500"][class*="bg-indigo-500"] .text-white:not(button):not(a) {
   color: rgb(67, 56, 202) !important; /* indigo-700 */
 }
+
 
 /* ── 38. Settings toggle buttons ── */
 body.light button[class*="bg-indigo-500/15"][class*="border-indigo-500"] {
@@ -668,7 +681,7 @@ body.light .border {
 
 /* ── 45. Overall text-white deep override for any missed elements ── */
 /* We do this last so it catches any stray .text-white we missed */
-body.light *[class~="text-white"]:not(button[class*="bg-indigo"]):not(button[class*="bg-violet"]):not(button[class*="bg-rose"]):not(button[class*="bg-red"]) {
+body.light *[class~="text-white"]:not(button):not(a) {
   color: rgb(15, 23, 42) !important;
 }
 
@@ -922,7 +935,7 @@ body.light button[class*="bg-indigo-500/"] {
   color: rgb(79, 70, 229) !important; /* Keep readable indigo text */
 }
 
-body.light button[class*="bg-indigo-500/"]:hover {
+body.light button[class*="bg-indigo-500/"].hover\:bg-indigo-500:hover {
   color: rgb(255, 255, 255) !important; /* White on solid hover bg */
 }
 
@@ -966,6 +979,336 @@ body.light .paragraph-summary-chip {
   color: rgb(15, 23, 42) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
+
+/* ── 64. Skimming View Style Adjustments ── */
+
+/* Dim out inactive skimming text to create beautiful contrast and flow */
+.skimming-paragraph {
+  color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.skimming-paragraph span {
+  color: rgba(255, 255, 255, 0.28) !important;
+  transition: color 0.3s ease-in-out, background-color 0.3s ease-in-out;
+}
+
+.skimming-paragraph span.skimming-active-highlight {
+  color: #ffffff !important;
+}
+
+body.light .skimming-paragraph {
+  color: rgba(15, 23, 42, 0.35) !important;
+}
+
+body.light .skimming-paragraph span {
+  color: rgba(15, 23, 42, 0.35) !important;
+}
+
+body.light .skimming-paragraph span.skimming-active-highlight {
+  color: rgb(15, 23, 42) !important;
+}
+
+/* Active Skimming Phrase Highlights (Bold Pacing Style) - Inline flow wrapping beautifully */
+.skimming-active-highlight {
+  display: inline !important;
+  position: relative;
+  background-color: rgba(99, 102, 241, 0.30) !important;
+  border: 1px solid rgba(99, 102, 241, 0.40) !important;
+  color: #ffffff !important;
+  border-radius: 0.25rem;
+  padding: 0.0625rem 0.25rem;
+  box-shadow: none !important;
+  transition: all 0.3s ease-in-out;
+  z-index: 10;
+}
+
+.skimming-active-highlight::before {
+  display: none !important; /* disable old absolute pseudo-element which caused layout/wrapping breakage */
+}
+
+body.light .skimming-active-highlight {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid rgba(99, 102, 241, 0.25) !important;
+  color: rgb(15, 23, 42) !important;
+  box-shadow: none !important;
+}
+
+/* Settings Hover Preview Boxes styling (using custom classes for bulletproof responsiveness) */
+:root {
+  --hyphen-inactive: #334155; /* slate-700 */
+  --hyphen-active: #818cf8; /* indigo-400 */
+}
+
+body.light {
+  --hyphen-inactive: #e2e8f0; /* slate-200 */
+  --hyphen-active: #4f46e5; /* indigo-600 */
+}
+
+.settings-preview-card {
+  background-color: #0f172a !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.light .settings-preview-card {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05), 0 0 1px 1px rgba(15, 23, 42, 0.05) !important;
+}
+
+/* Settings hover preview inner containers styling */
+body.light .settings-preview-inner {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Light mode overrides for placeholder lines inside white preview cards */
+body.light .settings-preview-card .bg-white\/5,
+body.light .settings-preview-card .bg-white\/4,
+body.light .settings-preview-card .bg-white\/3,
+body.light .settings-preview-card .bg-white\/2,
+body.light .settings-preview-card .bg-white\/8,
+body.light .settings-preview-card .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+  border-color: rgba(15, 23, 42, 0.05) !important;
+}
+
+/* Keep compatibility with any legacy tailwind selectors in settings screen */
+body.light .bg-\[\#0f172a\] {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+body.light .bg-\[\#090d16\] {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+body.light .bg-\[\#0f172a\] .bg-white\/5,
+body.light .bg-\[\#0f172a\] .bg-white\/4,
+body.light .bg-\[\#0f172a\] .bg-white\/3,
+body.light .bg-\[\#0f172a\] .bg-white\/2 {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Ensure Auto-Center Focus line placeholders are clearly visible in light mode */
+body.light .autocenter-preview-box .bg-slate-700\/40 {
+  background-color: rgba(15, 23, 42, 0.25) !important;
+}
+
+/* Native CSS Color Animation for Skim Preview in Light Mode to keep text perfectly legible while animating */
+@keyframes light-mode-skim-color-animation {
+  0%, 100% {
+    color: rgba(15, 23, 42, 0.35); /* faded slate */
+  }
+  50% {
+    color: rgb(79, 70, 229); /* active indigo */
+  }
+}
+
+body.light .settings-preview-card .font-bold.text-\[11px\] {
+  animation: light-mode-skim-color-animation 3s infinite ease-in-out !important;
+}
+
+/* ── 65. Drill Screen Overrides in Light Mode ── */
+
+/* Unified Nav Action Buttons in Light Mode */
+body.light .nav-action-button {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: rgb(71, 85, 105) !important; /* slate-600 */
+}
+
+body.light .nav-action-button:hover:not(:disabled) {
+  background-color: rgba(79, 70, 229, 0.08) !important; /* light purple hover */
+  border-color: rgba(79, 70, 229, 0.2) !important;
+  color: rgb(79, 70, 229) !important; /* active indigo */
+}
+
+body.light .nav-action-button.bg-indigo-500\/20 {
+  background-color: rgba(79, 70, 229, 0.15) !important;
+  border-color: rgba(79, 70, 229, 0.3) !important;
+  color: rgb(79, 70, 229) !important;
+}
+
+body.light .nav-action-button.bg-indigo-500\/20:hover {
+  background-color: rgba(79, 70, 229, 0.25) !important;
+  border-color: rgba(79, 70, 229, 0.40) !important;
+}
+
+/* Progress Bar Segments */
+.drill-progress-bar-segment {
+  height: 3px;
+  border-radius: 9999px;
+}
+.drill-progress-bar-segment.upcoming {
+  width: 10px;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}
+.drill-progress-bar-segment.passed {
+  width: 10px;
+  background-color: rgba(255, 255, 255, 0.4) !important;
+}
+.drill-progress-bar-segment.active {
+  width: 18px;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Light mode overrides for progress bar segments */
+body.light .drill-progress-bar-segment.upcoming {
+  background-color: rgba(15, 23, 42, 0.1) !important;
+}
+body.light .drill-progress-bar-segment.passed {
+  background-color: rgba(15, 23, 42, 0.35) !important;
+}
+body.light .drill-progress-bar-segment.active {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* ── RSVP / Drill ORP single-character fixation marker ──────────────────────
+   Research-backed: one character at ~30% position in the first word.
+   Dark red (crimson), low saturation, no bold — pure fixation anchor.
+   Background white/off-white; main text near-black.
+   No bionic reading, no rainbow colors, no neon. */
+
+.drill-orp-single {
+  color: #8b1a1a; /* dark crimson — low saturation, not neon */
+}
+
+/* Progress dot adjustments for white-background RSVP card */
+.drill-progress-dots .drill-progress-bar-segment.upcoming {
+  background-color: #d1d5db !important; /* gray-300 — visible on white */
+}
+.drill-progress-dots .drill-progress-bar-segment.active {
+  background-color: #374151 !important; /* gray-700 — near-black for active */
+}
+.drill-progress-dots .drill-progress-bar-segment.passed {
+  background-color: #9ca3af !important; /* gray-400 */
+}
+
+
+/* Metronome Flash Light Mode Overrides */
+body.light .drill-metronome-ring {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+body.light .drill-metronome-dot.bg-stone-300 {
+  background-color: rgba(15, 23, 42, 0.7) !important;
+}
+body.light .drill-metronome-dot.bg-rose-500 {
+  background-color: #e11d48 !important;
+}
+
+/* Ready Screen Light Mode Overrides */
+body.light .drill-ready-screen {
+  background-color: rgb(241, 245, 249) !important;
+}
+body.light .drill-ready-screen span.text-white {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .drill-ready-screen .text-stone-100 {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .drill-ready-screen .text-stone-500 {
+  color: rgb(71, 85, 105) !important;
+}
+body.light .drill-ready-screen .border-rose-950 {
+  border-color: rgba(225, 29, 72, 0.2) !important;
+}
+body.light .drill-ready-screen .border-stone-850 {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Comprehension Screen Light Mode Overrides */
+body.light .drill-comprehension-screen {
+  background-color: rgb(241, 245, 249) !important;
+}
+body.light .drill-comprehension-screen h2.text-white {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .drill-comprehension-screen .border-white\/10.bg-white\/3 {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+body.light .drill-comprehension-screen .text-slate-500 {
+  color: rgb(71, 85, 105) !important;
+}
+body.light .drill-comprehension-screen .text-slate-600 {
+  color: rgb(100, 116, 139) !important;
+}
+
+/* Comprehension options buttons in light mode */
+body.light .drill-opt-button {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: rgb(71, 85, 105) !important;
+}
+body.light .drill-opt-button:hover:not(:disabled) {
+  background-color: rgba(79, 70, 229, 0.06) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+  color: rgb(79, 70, 229) !important;
+}
+body.light .drill-opt-button.border-emerald-500\/30 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: rgb(5, 150, 105) !important;
+}
+body.light .drill-opt-button.border-rose-500\/30 {
+  background-color: rgba(244, 63, 94, 0.1) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+  color: rgb(225, 29, 72) !important;
+}
+body.light .drill-opt-button.opacity-40 {
+  background-color: rgba(15, 23, 42, 0.02) !important;
+  border-color: rgba(15, 23, 42, 0.05) !important;
+  color: rgb(148, 163, 184) !important;
+  opacity: 0.5 !important;
+}
+
+/* Result Screen Light Mode Overrides */
+body.light .drill-result-screen {
+  background-color: rgb(241, 245, 249) !important;
+}
+body.light .drill-result-screen h2.text-white {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .drill-result-screen .bg-stone-900\/70 {
+  background-color: rgb(255, 255, 255) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+body.light .drill-result-screen p.text-white {
+  color: rgb(15, 23, 42) !important;
+}
+body.light .drill-result-screen p.text-stone-500 {
+  color: rgb(71, 85, 105) !important;
+}
+body.light .drill-result-screen .text-stone-400 {
+  color: rgb(71, 85, 105) !important;
+}
+body.light .drill-result-screen button.text-slate-400 {
+  color: rgb(100, 116, 139) !important;
+}
+body.light .drill-result-screen button.text-slate-400:hover {
+  color: rgb(79, 70, 229) !important;
+}
+
+/* Light mode overrides for drill tier badges and borders */
+body.light .bg-rose-950\/30 { background-color: rgba(225, 29, 72, 0.08) !important; }
+body.light .border-rose-900\/30 { border-color: rgba(225, 29, 72, 0.2) !important; }
+
+body.light .bg-cyan-950\/30 { background-color: rgba(8, 145, 178, 0.08) !important; }
+body.light .border-cyan-900\/30 { border-color: rgba(8, 145, 178, 0.2) !important; }
+
+body.light .bg-indigo-950\/30 { background-color: rgba(79, 70, 229, 0.08) !important; }
+body.light .border-indigo-900\/30 { border-color: rgba(79, 70, 229, 0.2) !important; }
+
+body.light .bg-amber-950\/30 { background-color: rgba(217, 119, 6, 0.08) !important; }
+body.light .border-amber-900\/30 { border-color: rgba(217, 119, 6, 0.2) !important; }
+
+body.light .bg-violet-950\/30 { background-color: rgba(109, 40, 217, 0.08) !important; }
+body.light .border-violet-900\/30 { border-color: rgba(109, 40, 217, 0.2) !important; }
+
+body.light .bg-emerald-950\/30 { background-color: rgba(5, 150, 105, 0.08) !important; }
+body.light .border-emerald-900\/30 { border-color: rgba(5, 150, 105, 0.2) !important; }
+
+
 
 
 

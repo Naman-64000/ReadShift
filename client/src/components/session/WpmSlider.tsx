@@ -75,12 +75,17 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
       </div>
 
       {/* Recommended quick-set */}
-      {recommendedWpm && recommendedWpm !== value && (
+      {recommendedWpm && (
         <button
           onClick={() => onChange(recommendedWpm)}
-          className="w-full text-center text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+          className={cn(
+            "w-full text-center text-sm transition-colors font-semibold",
+            recommendedWpm === value
+              ? "text-indigo-500 dark:text-indigo-400/90 pointer-events-none"
+              : "text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 cursor-pointer"
+          )}
         >
-          Use recommended: {recommendedWpm} WPM →
+          {recommendedWpm === value ? `✓ Using recommended: ${recommendedWpm} WPM` : `Use recommended: ${recommendedWpm} WPM →`}
         </button>
       )}
     </div>

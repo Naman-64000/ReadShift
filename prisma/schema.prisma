@@ -53,9 +53,9 @@ model User {
   clerk_id  String   @unique
   is_admin  Boolean  @default(true) @map("is_admin")
   streak_days Int      @default(0) @map("streak_days")
-  last_session_at DateTime? @map("last_session_at")
-  created_at DateTime @default(now()) @map("created_at")
-  updated_at DateTime @updatedAt @map("updated_at")
+  last_session_at DateTime? @db.Timestamptz(3) @map("last_session_at")
+  created_at DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updated_at DateTime @updatedAt @db.Timestamptz(3) @map("updated_at")
 
   // Relations
   preferences   UserPreferences?
@@ -63,6 +63,7 @@ model User {
   calibrations  Calibration[]
   passageViews  UserPassageSeen[]
   assignments   PassageAssignment[]
+  drillViews    UserDrillSeen[]
 
   @@map("users")
 }
@@ -75,7 +76,7 @@ model User {
 model UserPreferences {
   id             String   @id @default(uuid())
   user_id        String   @unique @map("user_id")
-  chunk_size     Int      @default(3)         // 3 or 4 words per highlight chunk
+  chunk_size     Int      @default(2)         // 2 or 3 words per highlight chunk
   fading_enabled Boolean  @default(false)     // text fading mode
   guide_enabled  Boolean  @default(true)      // pacing guide line
   col_width      ColWidth @default(medium)    // column width preference
@@ -90,6 +91,7 @@ model UserPreferences {
   progress_bar_enabled Boolean  @default(true)      @map("progress_bar_enabled") // show/hide HUD progress bar
   timer_enabled  Boolean  @default(true)      @map("timer_enabled")        // show/hide HUD timer
   roadmaps_enabled Boolean  @default(true)      @map("roadmaps_enabled")     // paragraph roadmaps enabled
+  gemini_api_key String?  @map("gemini_api_key")
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -118,7 +120,8 @@ model Passage {
   flagged      Boolean @default(false)       // true = excluded from pool pending review
   flag_count   Int     @default(0) @map("flag_count")
   paragraph_roadmaps String[] @default([]) @map("paragraph_roadmaps")
-  created_at   DateTime @default(now()) @map("created_at")
+  skim_highlights    String[] @default([]) @map("skim_highlights")
+  created_at   DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
 
   // Relations
   questions    Question[]
@@ -134,7 +137,8 @@ model PassageAssignment {
   user_id          String   @map("user_id")
   passage_id       String   @map("passage_id")
   domain_requested Domain?  @map("domain_requested")
-  assigned_at      DateTime @default(now()) @map("assigned_at")
+  assigned_at      DateTime @default(now()) @db.Timestamptz(3) @map("assigned_at")
+  left_at_ms       Int?     @map("left_at_ms")
 
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   passage Passage @relation(fields: [passage_id], references: [id], onDelete: Cascade)
@@ -183,8 +187,8 @@ model Session {
   fading_used   Boolean  @map("fading_used")
   guide_used    Boolean  @map("guide_used")
   domain        String                          // Passage domain (denormalised for query perf)
-  started_at    DateTime @map("started_at")
-  completed_at  DateTime @map("completed_at")
+  started_at    DateTime @db.Timestamptz(3) @map("started_at")
+  completed_at  DateTime @db.Timestamptz(3) @map("completed_at")
 
   // Relations
   user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -225,7 +229,7 @@ model Calibration {
   id          String   @id @default(uuid())
   user_id     String   @map("user_id")
   wpm         Int                          // Calculated from 100-word calibration passage
-  recorded_at DateTime @default(now()) @map("recorded_at")
+  recorded_at DateTime @default(now()) @db.Timestamptz(3) @map("recorded_at")
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -242,7 +246,9 @@ model UserPassageSeen {
   id         String   @id @default(uuid())
   user_id    String   @map("user_id")
   passage_id String   @map("passage_id")
-  seen_at    DateTime @default(now()) @map("seen_at")
+  seen_at    DateTime @default(now()) @db.Timestamptz(3) @map("seen_at")
+  reallowed  Boolean  @default(false) @map("reallowed")
+  time_spent_ms Int     @default(0) @map("time_spent_ms")
 
   // Relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -251,4 +257,36 @@ model UserPassageSeen {
   // A user can only see a given passage once
   @@unique([user_id, passage_id])
   @@map("user_passage_seen")
+}
+
+model DrillPassage {
+  id            String   @id @default(uuid())
+  level         Int      // 1 to 6
+  body          String   // Passage body (65-85 words)
+  word_count    Int      @map("word_count")
+  question_stem String   @map("question_stem")
+  options       String[] // 2 option strings
+  correct_index Int      @map("correct_index") // 0 or 1
+  source        String   @default("seed")
+  created_at    DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+
+  // Relations
+  views         UserDrillSeen[]
+
+  @@map("drill_passages")
+}
+
+model UserDrillSeen {
+  id               String   @id @default(uuid())
+  user_id          String   @map("user_id")
+  drill_passage_id String   @map("drill_passage_id")
+  seen_at          DateTime @default(now()) @db.Timestamptz(3) @map("seen_at")
+
+  // Relations
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  drillPassage DrillPassage @relation(fields: [drill_passage_id], references: [id], onDelete: Cascade)
+
+  // A user can only see a given drill passage once
+  @@unique([user_id, drill_passage_id])
+  @@map("user_drill_seen")
 }

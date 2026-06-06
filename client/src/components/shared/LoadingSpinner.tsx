@@ -8,11 +8,12 @@ interface LoadingSpinnerProps {
   size?: "sm" | "md" | "lg";
   fullPage?: boolean;
   label?: string;
+  labelClassName?: string;
 }
 
 const sizes = { sm: "h-4 w-4", md: "h-8 w-8", lg: "h-12 w-12" };
 
-export default function LoadingSpinner({ size = "md", fullPage = false, label }: LoadingSpinnerProps) {
+export default function LoadingSpinner({ size = "md", fullPage = false, label, labelClassName }: LoadingSpinnerProps) {
   const spinner = (
     <div className="flex flex-col items-center gap-3">
       <svg
@@ -23,7 +24,7 @@ export default function LoadingSpinner({ size = "md", fullPage = false, label }:
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
       </svg>
-      {label && <p className="text-sm text-slate-400 animate-pulse">{label}</p>}
+      {label && <p className={cn("text-sm animate-pulse", labelClassName || "text-slate-400")}>{label}</p>}
     </div>
   );
 

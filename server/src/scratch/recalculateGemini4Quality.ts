@@ -2,23 +2,44 @@ import "../lib/env.js";
 import { prisma } from "../lib/prisma.js";
 import { evaluatePassageQuality } from "../services/passageQualityService.js";
 
-async function main() {
-  console.log("🚀 Starting database passage quality recalculation...");
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
+async function main() {
+  console.log("🚀 Starting source renaming & quality recalculation for 'gemini 4'...");
+
+  // 1. Rename all passages source from "gemini 4 (source A)" to "gemini 4"
+  console.log("  - Renaming passages source from 'gemini 4 (source A)' to 'gemini 4' in database...");
+  const renameResult = await prisma.passage.updateMany({
+    where: {
+      source: "gemini 4 (source A)",
+    },
+    data: {
+      source: "gemini 4",
+      generated_by: "gemini-3.1-flash-lite (gemini 4)",
+    },
+  });
+  console.log(`  ✅ Success! Renamed ${renameResult.count} passages source to 'gemini 4'.`);
+
+  // 2. Fetch all passages belonging to "gemini 4"
   const passages = await prisma.passage.findMany({
+    where: {
+      source: "gemini 4",
+    },
     include: {
       questions: true,
     },
   });
 
-  console.log(`Found ${passages.length} passages to process.`);
+  console.log(`Found ${passages.length} passages to process under 'gemini 4'.`);
 
   let updatedCount = 0;
   for (const p of passages) {
     const prevScore = p.quality_score;
     const prevStatus = p.status;
 
-    // Run the new quality check
+    // Run the new quality check (which now maps score >= 60 to ready, score < 60 to draft)
     const quality = await evaluatePassageQuality({
       body: p.body,
       word_count: p.word_count,
@@ -28,7 +49,6 @@ async function main() {
     });
 
     // Update the database
-    // Note: status is ready or draft depending on quality check score >= 70
     await prisma.passage.update({
       where: { id: p.id },
       data: {
@@ -40,15 +60,18 @@ async function main() {
     });
 
     console.log(`Passage [${p.id.slice(0, 8)}] (${p.domain}):`);
+    console.log(`  - Title: "${p.title}"`);
     console.log(`  - Word Count: ${p.word_count}`);
-    console.log(`  - Paragraphs: ${p.body.split(/\n\s*\n/g).filter((para) => para.trim().length > 10).length}`);
     console.log(`  - Score: ${prevScore} ➔ ${quality.quality_score}`);
-    console.log(`  - Status: ${prevStatus} ➔ ${quality.status === "ready" ? "ready" : "draft"}`);
+    console.log(`  - Status: ${prevStatus} ➔ ${quality.status}`);
     
     updatedCount++;
+
+    // Strict 4.5-second buffer to stay safely under the 15 RPM free tier rate limit
+    await sleep(4500);
   }
 
-  console.log(`\n✅ Done! Successfully updated ${updatedCount} passages in the database.`);
+  console.log(`\n✅ Done! Successfully recalculated and updated ${updatedCount} passages in the database.`);
 }
 
 main()

@@ -24,12 +24,13 @@ export const DOMAINS: { value: Domain; label: string; description: string; emoji
 ];
 
 // ── Reading Aids ──────────────────────────────────────────────
-export const CHUNK_SIZES: { value: 3 | 4; label: string; description: string }[] = [
-  { value: 3, label: "3 words", description: "Focused chunks — better for denser text" },
-  { value: 4, label: "4 words", description: "Wider chunks — faster pacing" },
+export const CHUNK_SIZES: { value: 2 | 3; label: string; description: string }[] = [
+  { value: 2, label: "2 words", description: "Focused chunks — better for denser text" },
+  { value: 3, label: "3 words", description: "Wider chunks — faster pacing" },
 ];
 
-export const FONT_SIZES: { value: 16 | 18 | 21; label: string }[] = [
+export const FONT_SIZES: { value: 12 | 16 | 18 | 21; label: string }[] = [
+  { value: 12, label: "12px (CAT)" },
   { value: 16, label: "Small (16px)" },
   { value: 18, label: "Medium (18px)" },
   { value: 21, label: "Large (21px)" },
@@ -54,7 +55,7 @@ export const SESSION_PHASES = ["idle", "config", "reading", "mcq", "results"] as
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
   main_idea: "Main Idea",
   inference: "Inference",
-  vocab:     "Vocabulary in Context",
+  vocab:     "Deep Inference",
 };
 
 // ── Comprehension Threshold ───────────────────────────────────

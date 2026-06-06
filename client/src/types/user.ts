@@ -20,11 +20,11 @@ export interface User {
 export interface UserPreferences {
   id: string;
   user_id: string;
-  chunk_size: 3 | 4;
+  chunk_size: 2 | 3;
   fading_enabled: boolean;
   guide_enabled: boolean;
   col_width: ColWidth;
-  font_size_px: 16 | 18 | 21;
+  font_size_px: 12 | 16 | 18 | 21;
   domains: Domain[];
   mcq_timer: number;
   highlight_intensity: "none" | "subtle" | "moderate" | "intense";
@@ -35,6 +35,7 @@ export interface UserPreferences {
   progress_bar_enabled: boolean;
   timer_enabled: boolean;
   roadmaps_enabled?: boolean;
+  gemini_api_key?: string | null;
 }
 
 /** Combined user + prefs shape returned by GET /api/users/me */

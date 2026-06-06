@@ -3,16 +3,16 @@
  */
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { apiClient } from "@/lib/apiClient";
 import { useSession } from "@/hooks/useSession";
 import { useReadingTimer } from "@/hooks/useReadingTimer";
 import ReadingEngine from "@/components/session/ReadingEngine";
 import ProgressBar from "@/components/session/ProgressBar";
 import { motion } from "framer-motion";
-import { useUIStore, useUserStore } from "@/store";
+import { useUIStore, useUserStore, useSessionStore } from "@/store";
 import Button from "@/components/shared/Button";
-import { msToTime, readingProgress, calculateActualWpm, parseParagraphsForSkimming } from "@/lib/utils";
+import { msToTime, readingProgress, calculateActualWpm } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
@@ -21,20 +21,68 @@ const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
   wide:   "max-w-[65rem]",
 };
 
+interface SkimSegment {
+  text: string;
+  isHighlight: boolean;
+  globalIndex?: number;
+}
+
 export default function ReadingScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { passage, config, chunks, intervalMs, customChunkIntervalsMs, extraDelayMsByNextChunk, isLaapActive, totalChunks, markReadingDone, resetSession, phase, submitSession } = useSession();
   const { setFullscreen } = useUIStore();
   const { preferences, fetchProfile } = useUserStore();
   const [isReady, setIsReady] = useState(false);
+  const isReadyRef = useRef(false);
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
   const [isFinished, setIsFinished] = useState(false);
   const [showFinishedOverlay, setShowFinishedOverlay] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [submittingDirect, setSubmittingDirect] = useState(false);
 
+  // ── Pure ref-based wall-clock active timer ─────────────────────────────────
+  // We deliberately avoid React state so reads are always instantaneous (no
+  // render-cycle delay) and we never have a stale-closure problem.
+  const activeAccumulatedMsRef = useRef(0);   // ms accumulated before current tracking started
+  const activeStartWallRef = useRef<number | null>(null); // performance.now() when tracking started (null = paused)
+
+  /** Returns the total active time spent in ms right now. */
+  const getActiveTimeSpentMs = useCallback((): number => {
+    const accumulated = activeAccumulatedMsRef.current;
+    const start = activeStartWallRef.current;
+    return start !== null ? accumulated + (performance.now() - start) : accumulated;
+  }, []);
+
+  /** Start accumulating active time (idempotent). */
+  const startActiveTracking = useCallback(() => {
+    if (activeStartWallRef.current === null) {
+      activeStartWallRef.current = performance.now();
+    }
+  }, []);
+
+  /** Pause accumulating active time (idempotent). */
+  const pauseActiveTracking = useCallback(() => {
+    if (activeStartWallRef.current !== null) {
+      activeAccumulatedMsRef.current += performance.now() - activeStartWallRef.current;
+      activeStartWallRef.current = null;
+    }
+  }, []);
+
+  const theme = useUIStore((s) => s.theme);
+  const toggleTheme = useUIStore((s) => s.toggleTheme);
+
+  const isCatDefault = preferences?.font_size_px === 12;
+  const passageFontClass = isCatDefault ? "font-sans" : "font-serif";
+  const passageFontSize = isCatDefault ? 16 : (preferences?.font_size_px ?? 18);
+  const passageFontFamily = isCatDefault ? "Arial, Calibri, sans-serif" : undefined;
+
   const handleFinishWithoutMCQs = async () => {
     setSubmittingDirect(true);
-    markReadingDone(elapsedMs);
+    pauseActiveTracking();
+    markReadingDone(elapsedMs, Math.round(getActiveTimeSpentMs()));
     try {
       await submitSession();
       navigate("/session/results");
@@ -48,6 +96,7 @@ export default function ReadingScreen() {
   // 🧠 15-Second Structural Skimming Module States & Lifecycle
   const [isSkimming, setIsSkimming] = useState(false);
   const [skimmingTimeLeft, setSkimmingTimeLeft] = useState(15);
+  const [skimmingElapsedMs, setSkimmingElapsedMs] = useState(0);
   const skimmingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSkimmingRef = useRef(false);
   const isSkimmingPausedRef = useRef(false);
@@ -63,10 +112,120 @@ export default function ReadingScreen() {
     }
   }, [passage]);
 
-  const skimmingParagraphs = useMemo(() => {
-    if (!passage) return [];
-    return parseParagraphsForSkimming(passage.passage.body);
+
+  const paragraphsWithSegments = useMemo(() => {
+    if (!passage?.passage?.body) return [];
+    const rawParagraphs = passage.passage.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const highlights = passage.passage.skim_highlights || [];
+    
+    // Extract all phrase texts in order of their occurrence in the skim_highlights array
+    const allPhrases = highlights
+      .flatMap((phaseRaw) => phaseRaw.split(",").map((p) => p.trim()).filter(Boolean));
+    
+    const phrasesWithTempId = allPhrases.map((phrase, idx) => ({
+      text: phrase,
+      tempId: idx,
+    }));
+
+    const matchedGlobalIndices = new Set<number>();
+    const allMatches: {
+      paraIdx: number;
+      startIdx: number;
+      text: string;
+      tempId: number;
+    }[] = [];
+
+    rawParagraphs.forEach((paraText, paraIdx) => {
+      let currentPos = 0;
+      for (const phraseObj of phrasesWithTempId) {
+        if (matchedGlobalIndices.has(phraseObj.tempId)) continue;
+        
+        const startIdx = paraText.toLowerCase().indexOf(phraseObj.text.toLowerCase(), currentPos);
+        if (startIdx !== -1) {
+          allMatches.push({
+            paraIdx,
+            startIdx,
+            text: paraText.substring(startIdx, startIdx + phraseObj.text.length),
+            tempId: phraseObj.tempId,
+          });
+          currentPos = startIdx + phraseObj.text.length;
+          matchedGlobalIndices.add(phraseObj.tempId);
+        }
+      }
+    });
+
+    // Sort matches strictly by sequential reading order (paragraph index first, then character start index)
+    allMatches.sort((a, b) => {
+      if (a.paraIdx !== b.paraIdx) {
+        return a.paraIdx - b.paraIdx;
+      }
+      return a.startIdx - b.startIdx;
+    });
+
+    // Create a mapping from tempId to sequential globalIndex
+    const tempIdToGlobalIndex = new Map<number, number>();
+    allMatches.forEach((match, idx) => {
+      tempIdToGlobalIndex.set(match.tempId, idx);
+    });
+
+    // Now reconstruct paragraphs with segments, using the sorted and reindexed matches
+    return rawParagraphs.map((paraText, paraIdx) => {
+      const paraSegments: SkimSegment[] = [];
+      const paraMatches = allMatches.filter((m) => m.paraIdx === paraIdx);
+      
+      let lastPos = 0;
+      paraMatches.forEach((match) => {
+        if (match.startIdx > lastPos) {
+          paraSegments.push({
+            text: paraText.substring(lastPos, match.startIdx),
+            isHighlight: false,
+          });
+        }
+        paraSegments.push({
+          text: match.text,
+          isHighlight: true,
+          globalIndex: tempIdToGlobalIndex.get(match.tempId)!,
+        });
+        lastPos = match.startIdx + match.text.length;
+      });
+      
+      if (lastPos < paraText.length) {
+        paraSegments.push({
+          text: paraText.substring(lastPos),
+          isHighlight: false,
+        });
+      }
+      
+      return paraSegments;
+    });
   }, [passage]);
+
+  const totalMatchesCount = useMemo(() => {
+    let count = 0;
+    paragraphsWithSegments.forEach((para) => {
+      para.forEach((seg) => {
+        if (seg.isHighlight) count++;
+      });
+    });
+    return count;
+  }, [paragraphsWithSegments]);
+
+  const activeGlobalIndex = useMemo(() => {
+    if (totalMatchesCount === 0) return -1;
+    return Math.min(
+      totalMatchesCount - 1,
+      Math.floor(skimmingElapsedMs / (15000 / totalMatchesCount))
+    );
+  }, [totalMatchesCount, skimmingElapsedMs]);
+
+  const activeSegmentRef = useRef<HTMLSpanElement | null>(null);
+
+  // Auto-center scroll active skimming segment into view
+  useEffect(() => {
+    if (isSkimming && activeSegmentRef.current) {
+      activeSegmentRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [activeGlobalIndex, isSkimming]);
 
   useEffect(() => {
     isSkimmingRef.current = isSkimming;
@@ -77,23 +236,27 @@ export default function ReadingScreen() {
     setIsSkimming(true);
     setIsReady(true);
     setSkimmingTimeLeft(15);
+    setSkimmingElapsedMs(0);
     isSkimmingPausedRef.current = false;
+    startActiveTracking(); // ← start wall-clock when skimming begins
     
     if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
     
     skimmingTimerRef.current = setInterval(() => {
       if (isSkimmingPausedRef.current) return;
 
-      setSkimmingTimeLeft((prev) => {
-        if (prev <= 1) {
+      setSkimmingElapsedMs((prev) => {
+        const next = prev + 100;
+        if (next >= 15000) {
           if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
           setIsSkimming(false);
           if (!isRunning && totalChunks > 0) start();
-          return 15;
+          return 15000;
         }
-        return prev - 1;
+        setSkimmingTimeLeft(Math.max(0, Math.ceil((15000 - next) / 1000)));
+        return next;
       });
-    }, 1000);
+    }, 100);
   };
 
   const handleStopSkimmingAndStart = () => {
@@ -113,6 +276,9 @@ export default function ReadingScreen() {
     setIsFinished(false);
     setShowFinishedOverlay(false);
     reset(); // Reset reading timer
+    // Reset active clock so a restart begins from 0
+    activeAccumulatedMsRef.current = 0;
+    activeStartWallRef.current = null;
     const isSkimOn = preferences?.skim_enabled ?? true;
     if (isSkimOn) {
       handleStartSkimming();
@@ -126,12 +292,14 @@ export default function ReadingScreen() {
     const handlePauseSkimming = () => {
       if (isSkimmingRef.current && !isSkimmingPausedRef.current) {
         isSkimmingPausedRef.current = true;
+        pauseActiveTracking(); // ← pause wall-clock when window blurs during skim
       }
     };
 
     const handleResumeSkimming = () => {
       if (isSkimmingRef.current && isSkimmingPausedRef.current) {
         isSkimmingPausedRef.current = false;
+        startActiveTracking(); // ← resume wall-clock when window focuses during skim
       }
     };
 
@@ -155,7 +323,7 @@ export default function ReadingScreen() {
       window.removeEventListener("blur", handlePauseSkimming);
       window.removeEventListener("focus", handleResumeSkimming);
     };
-  }, []);
+  }, [pauseActiveTracking, startActiveTracking]);
 
   // Redirect if no active session
   useEffect(() => {
@@ -171,7 +339,8 @@ export default function ReadingScreen() {
   }, [setFullscreen]);
 
   const handleComplete = (elapsed: number) => {
-    markReadingDone(elapsed);
+    pauseActiveTracking(); // ← freeze wall-clock the instant reading finishes
+    markReadingDone(elapsed, Math.round(getActiveTimeSpentMs()));
     
     const totalParagraphs = passage?.passage?.paragraph_roadmaps?.length ?? 0;
     const finalRoadmap = totalParagraphs > 0 ? passage?.passage?.paragraph_roadmaps?.[totalParagraphs - 1] : null;
@@ -194,6 +363,12 @@ export default function ReadingScreen() {
       onComplete: handleComplete,
     });
 
+  const hasAbandonedRef = useRef(false);
+  const elapsedMsRef = useRef(elapsedMs);
+  useEffect(() => {
+    elapsedMsRef.current = elapsedMs;
+  }, [elapsedMs]);
+
   // Synchronously reset all active timers (paced and skimming) on unmount to prevent background leaks
   useEffect(() => {
     return () => {
@@ -201,11 +376,30 @@ export default function ReadingScreen() {
       if (skimmingTimerRef.current) {
         clearInterval(skimmingTimerRef.current);
       }
+
+      const currentPhase = useSessionStore.getState().phase;
+      const currentPassage = useSessionStore.getState().passage;
+      if (
+        currentPassage?.passage?.id &&
+        currentPhase !== "results" &&
+        currentPhase !== "idle" &&
+        currentPhase !== "config" &&
+        !hasAbandonedRef.current
+      ) {
+        hasAbandonedRef.current = true;
+        const neverStarted = !isReadyRef.current;
+        void apiClient.post("/sessions/abandon", {
+          passage_id: currentPassage.passage.id,
+          elapsed_ms: Math.round(getActiveTimeSpentMs()),
+          never_started: neverStarted,
+        }).catch(() => {});
+      }
     };
   }, [reset]);
 
   const handleBegin = () => {
     void markPassageSeenInDb();
+    startActiveTracking(); // ← start wall-clock when RSVP begins
     if (!isRunning && totalChunks > 0) start();
     setIsReady(true);
   };
@@ -218,6 +412,17 @@ export default function ReadingScreen() {
   const isFinalRoadmapRef = useRef(false);
   const hasParagraphRoadmaps = (passage?.passage?.paragraph_roadmaps?.length ?? 0) > 0;
   const roadmapsEnabledForPassage = Boolean(preferences?.roadmaps_enabled && hasParagraphRoadmaps);
+
+  // ── Sync RSVP pause/resume to active clock ──────────────────────────────────
+  // The useReadingTimer hook handles its own visibility/blur pausing internally.
+  // We mirror those events here so the active clock stays accurate.
+  useEffect(() => {
+    if (isPaused && isReady && !isFinished) {
+      pauseActiveTracking();
+    } else if (!isPaused && isRunning) {
+      startActiveTracking();
+    }
+  }, [isPaused, isRunning, isReady, isFinished, pauseActiveTracking, startActiveTracking]);
 
   // Handle automatic dismissal of paragraph roadmap after exactly 5 seconds
   useEffect(() => {
@@ -232,11 +437,12 @@ export default function ReadingScreen() {
         setIsFinished(true);
       } else {
         resume();
+        startActiveTracking(); // ← resume clock when roadmap auto-dismisses
       }
     }, 10000);
     
     return () => clearTimeout(timer);
-  }, [activeRoadmap, resume]);
+  }, [activeRoadmap, resume, startActiveTracking]);
 
   // Monitor chunk advances to trigger Paragraph Roadmap pause & overlay
   useEffect(() => {
@@ -253,6 +459,7 @@ export default function ReadingScreen() {
       if (roadmap) {
         lastCheckedChunkIndexRef.current = currentChunkIndex;
         pause();
+        pauseActiveTracking(); // ← pause wall-clock when roadmap pops
         setIsRoadmapPaused(true);
         setActiveRoadmap(roadmap);
       }
@@ -260,8 +467,24 @@ export default function ReadingScreen() {
   }, [currentChunkIndex, chunks, passage, preferences, roadmapsEnabledForPassage, isReady, isFinished, isPaused, isRoadmapPaused, isSkimming, pause]);
 
   const handleBackToConfig = () => {
+    if (skimmingTimerRef.current) {
+      clearInterval(skimmingTimerRef.current);
+    }
+    if (passage?.passage?.id && !hasAbandonedRef.current) {
+      hasAbandonedRef.current = true;
+      const neverStarted = !isReadyRef.current;
+      void apiClient.post("/sessions/abandon", {
+        passage_id: passage.passage.id,
+        elapsed_ms: Math.round(getActiveTimeSpentMs()),
+        never_started: neverStarted,
+      }).catch((e) => console.error("Failed to mark session as abandoned:", e));
+    }
     resetSession();
-    navigate("/session/config");
+    if (location.state?.fromStartSession) {
+      navigate("/dashboard");
+    } else {
+      navigate("/session/config");
+    }
   };
 
   const triggerExitWarning = () => {
@@ -271,6 +494,7 @@ export default function ReadingScreen() {
     if (isSkimmingRef.current) {
       isSkimmingPausedRef.current = true;
     }
+    pauseActiveTracking(); // ← freeze clock when exit dialog appears
     setShowExitWarning(true);
   };
 
@@ -282,6 +506,7 @@ export default function ReadingScreen() {
     if (isSkimmingRef.current) {
       isSkimmingPausedRef.current = false;
     }
+    startActiveTracking(); // ← resume clock when user chooses to keep reading
   };
 
   const handleStartSession = () => {
@@ -321,8 +546,8 @@ export default function ReadingScreen() {
             <motion.div 
               initial={{ opacity: 0, y: 15 }} 
               animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-6 text-slate-200 leading-relaxed select-text font-serif bg-[#0d1527]/50 border border-white/8 p-6 sm:p-10 rounded-2xl shadow-2xl"
-              style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
+              className={cn("w-full space-y-6 text-slate-200 leading-relaxed select-text bg-[#0d1527]/50 border border-white/8 p-6 sm:p-10 rounded-2xl shadow-2xl", passageFontClass)}
+              style={{ fontSize: `${passageFontSize}px`, fontFamily: passageFontFamily }}
             >
               {passage.passage.body.split(/\n\s*\n/).map((p, idx) => (
                 <p key={idx}>{p.trim()}</p>
@@ -358,7 +583,7 @@ export default function ReadingScreen() {
           {isSkimming ? (
             <>
               {/* Skimming Top Bar */}
-              <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
+              <div className="fixed top-0 inset-x-0 z-[60] bg-slate-950/90 backdrop-blur border-b border-white/8 flex flex-col justify-between">
                 <div className="w-full h-1 bg-white/5 overflow-hidden">
                   <motion.div 
                     initial={{ width: "100%" }}
@@ -367,14 +592,49 @@ export default function ReadingScreen() {
                     className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
                   />
                 </div>
-                <div className="flex items-center justify-between px-4 sm:px-6 h-11 gap-2">
+                <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
+                  <button
+                    onClick={handleBackToConfig}
+                    className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold nav-action-button"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>Back</span>
+                  </button>
+                  
                   <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                    🧠 Structural Skimming (Cognitive Priming)
+                    🧠 Cognitive Priming Skimming
                   </span>
-                  <span className="text-xs font-mono font-bold text-slate-300 bg-white/5 border border-white/8 px-2 py-0.5 rounded">
-                    {skimmingTimeLeft}s
-                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleTheme}
+                      className="p-1.5 rounded-full border border-white/10 bg-slate-900/60 text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 nav-action-button"
+                      aria-label="Toggle theme"
+                      title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                    >
+                      {theme === "light" ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>
+                      )}
+                    </button>
+                    <span className="text-xs font-mono font-bold text-slate-300 bg-white/5 border border-white/8 px-2 py-0.5 rounded">
+                      {skimmingTimeLeft}s
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -382,28 +642,34 @@ export default function ReadingScreen() {
               <div className={cn("flex-1 flex flex-col items-start pt-20 pb-28 px-4 overflow-y-auto mx-auto w-full no-scrollbar", colWidthClass[preferences?.col_width ?? "medium"])}>
                 <div className="text-center w-full mb-6 space-y-1">
                   <p className="text-xs text-slate-500 font-medium">
-                    Focus strictly on the highlighted topic sentences below to prime your mental context schema.
+                    Let your eyes jump to the highlighted key terms sequentially to build a structural roadmap of the passage.
                   </p>
                 </div>
                 
-                <div className="w-full space-y-6">
-                  {skimmingParagraphs.map((p, idx) => (
-                    <div key={idx} className="relative pl-4 border-l-2 border-indigo-500/20 py-0.5">
-                      <span 
-                        className="text-white font-medium leading-relaxed font-serif transition-colors duration-300"
-                        style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
-                      >
-                        {p.firstSentence}
-                      </span>
-                      {p.remainingText && (
-                        <span 
-                          className="text-slate-700 opacity-25 font-normal leading-relaxed font-serif ml-1 select-none"
-                          style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
-                        >
-                          {" "}{p.remainingText}
-                        </span>
-                      )}
-                    </div>
+                <div className="w-full space-y-6 select-none">
+                  {paragraphsWithSegments.map((segments, paraIdx) => (
+                    <p 
+                      key={paraIdx} 
+                      className={cn("leading-[1.8] font-normal transition-colors duration-300 skimming-paragraph", passageFontClass)}
+                      style={{ fontSize: `${passageFontSize}px`, fontFamily: passageFontFamily }}
+                    >
+                      {segments.map((segment, segIdx) => {
+                        if (segment.isHighlight) {
+                          const isActive = segment.globalIndex === activeGlobalIndex;
+                          return (
+                            <span
+                              key={segIdx}
+                              ref={isActive ? activeSegmentRef : null}
+                              className={isActive ? "skimming-active-highlight" : ""}
+                            >
+                              {segment.text}
+                            </span>
+                          );
+                        } else {
+                          return <span key={segIdx}>{segment.text}</span>;
+                        }
+                      })}
+                    </p>
                   ))}
                 </div>
               </div>
@@ -422,12 +688,12 @@ export default function ReadingScreen() {
           ) : (
             <>
               {/* Top bar */}
-              <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
+              <div className="fixed top-0 inset-x-0 z-[60] bg-slate-950/90 backdrop-blur border-b border-white/8">
                 {(preferences?.progress_bar_enabled ?? true) && <ProgressBar percent={progress} />}
                 <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
                   <button
                     onClick={triggerExitWarning}
-                    className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold"
+                    className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold nav-action-button"
                   >
                     <svg
                       className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
@@ -455,34 +721,50 @@ export default function ReadingScreen() {
                     <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">
                       {config.target_wpm} WPM
                     </span>
+                    <button
+                      onClick={toggleTheme}
+                      className="p-1.5 rounded-full border border-white/10 bg-slate-900/60 text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 nav-action-button"
+                      aria-label="Toggle theme"
+                      title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                    >
+                      {theme === "light" ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={isPaused ? resume : pause}
+                      disabled={!isReady}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold transition-all duration-300 shadow-md nav-action-button",
+                        isPaused
+                          ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/35 hover:border-indigo-500/50 shadow-indigo-500/10 animate-pulse scale-[1.03]"
+                          : "bg-slate-900/60 border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20",
+                        !isReady && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {isPaused ? (
+                        <>
+                          <svg className="w-3.5 h-3.5 fill-current text-indigo-400" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                          <span>Resume</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5 fill-current text-slate-400" viewBox="0 0 24 24">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                          </svg>
+                          <span>Pause</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={isPaused ? resume : pause}
-                    disabled={!isReady}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold transition-all duration-300 shadow-md",
-                      isPaused
-                        ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/35 hover:border-indigo-500/50 shadow-indigo-500/10 animate-pulse scale-[1.03]"
-                        : "bg-slate-900/60 border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20",
-                      !isReady && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    {isPaused ? (
-                      <>
-                        <svg className="w-3.5 h-3.5 fill-current text-indigo-400" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                        <span>Resume</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5 fill-current text-slate-400" viewBox="0 0 24 24">
-                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                        </svg>
-                        <span>Pause</span>
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
 
@@ -494,10 +776,11 @@ export default function ReadingScreen() {
                   fadingEnabled={config.fading_enabled}
                   guideEnabled={config.guide_enabled}
                   colWidth={config.fading_enabled ? "medium" : "medium"}
-                  fontSizePx={preferences?.font_size_px ?? 18}
+                  fontSizePx={passageFontSize}
                   highlightIntensity={preferences?.highlight_intensity ?? "moderate"}
                   autoCenterScroll={preferences?.auto_center_scroll ?? true}
                   isPaused={isPaused || !isReady}
+                  isCatDefault={isCatDefault}
                 />
               </div>
 
@@ -514,7 +797,7 @@ export default function ReadingScreen() {
 
               {/* Next Button — appears when paced reading ends but Finished Overlay is not yet triggered */}
               {isFinished && !showFinishedOverlay && (
-                <div className="fixed bottom-10 inset-x-0 flex justify-center z-40">
+                <div className="fixed bottom-10 right-6 sm:right-12 z-40">
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                     <Button size="lg" className="shadow-2xl shadow-indigo-500/20 px-8 font-bold flex items-center gap-2" onClick={() => setShowFinishedOverlay(true)}>
                       Next
@@ -589,7 +872,7 @@ export default function ReadingScreen() {
               {preferences?.mcqs_enabled ?? true ? (
                 <Button
                   onClick={() => {
-                    markReadingDone(elapsedMs);
+                    markReadingDone(elapsedMs, Math.round(getActiveTimeSpentMs()));
                     navigate("/session/mcq");
                   }}
                   className="w-full justify-center shadow-lg shadow-indigo-500/20 font-bold"
@@ -663,7 +946,7 @@ export default function ReadingScreen() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-[#0d1527]/90 border border-indigo-500/25 p-8 rounded-3xl max-w-xl w-full text-center space-y-6 shadow-2xl relative overflow-hidden paragraph-summary-modal"
+            className="bg-[#0d1527]/90 border border-indigo-500/25 p-8 rounded-3xl max-w-3xl w-full text-center space-y-6 shadow-2xl relative overflow-hidden paragraph-summary-modal"
           >
             {/* Background accent glow */}
             <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />

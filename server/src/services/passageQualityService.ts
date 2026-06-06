@@ -2,15 +2,26 @@
  * server/src/services/passageQualityService.ts
  * Centralized quality evaluation for generated/seeded passage bundles.
  *
- * Scoring dimensions (0-100 each):
- *  - Word count  (45%) — ideal 420-620 words; linearly decays below/above
- *  - Paragraphs  (30%) — ideal 3-7 paragraphs; hard penalty for < 3 (wall-of-text)
- *  - Questions   (25%) — must have exactly 3; hard fail if not
- *  - Source trust bonus: +5 for gemini/curated, 0 for static_vault, -5 for seed
- *  - Banned label penalty: -40 if "[Passage N]" or "Passage N:" prefix found
+ * Scoring dimensions:
+ *  - FORMAT SCORE (30 pts max)
+ *     - Word count  (10 pts)
+ *     - Paragraphs  (10 pts)
+ *     - Questions   (10 pts)
+ *  - CONTENT SCORE (70 pts max)
+ *     - Concept Density     (15 pts) - Transitional & conceptual contrast markers
+ *     - Argument Structure  (15 pts) - Claims, counterclaims, qualifications, rebuttals
+ *     - Author Nuance       (10 pts) - Qualifiers, hedges, uncertainty signals
+ *     - Inference Potential (10 pts) - LLM Evaluator (density of GMAT inference patterns)
+ *     - Naturalness         (10 pts) - LLM Evaluator (scholarly journal vs robotic AI text)
+ *     - Structural Variety  (5 pts)  - Automated check for starting paragraph diversity
+ *     - Title Quality       (5 pts)  - LLM Evaluator (creative academic vs generic headers)
  *
- * Threshold: ≥ 70 → "ready", < 70 → "draft" (held for manual review)
+ * Status Threshold:
+ *  - Score >= 60 -> "ready" (80+ Excellent, 70-79 Strong, 60-69 Acceptable)
+ *  - Score < 60  -> "draft" (50-59 Review, <50 Draft)
  */
+
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 const BANNED_LABEL_PATTERNS = [/^\s*\[passage\s*\d+\]/i, /^\s*passage\s*\d+\s*:/i];
 
@@ -18,7 +29,8 @@ export interface PassageQualityInput {
   body: string;
   word_count: number;
   questionCount: number;
-  source: "seed" | "gemini" | "curated" | "static_vault" | string;
+  source: string;
+  title?: string;
 }
 
 export interface PassageQualityResult {
@@ -52,89 +64,208 @@ export function buildPassageTitle(topicKey: string | null | undefined): string {
   return title || fallback;
 }
 
-function clampScore(n: number): number {
-  return Math.max(0, Math.min(100, Math.round(n)));
-}
+// ── HEURISTICS MARKERS ────────────────────────────────────────────────────────
 
-/**
- * Word count score based on strict arithmetic ranges (diff of 20):
- *  - 420-440 words: 60 points
- *  - 441-460 words: 65 points
- *  - 461-480 words: 70 points
- *  - 481-500 words: 75 points
- *  - 501-520 words: 80 points
- *  - 521-540 words: 85 points
- *  - 541-560 words: 90 points
- *  - 561-580 words: 95 points
- *  - 581-600 words: 97 points
- *  - 601-620 words: 100 points (ideal threshold)
- *  - Outside 420-620 words: 0 points (invalid GMAT length)
- */
+const CONCEPT_DENSITY_MARKERS = [
+  /\bhowever\b/gi, /\balthough\b/gi, /\byet\b/gi, /\brather\s+than\b/gi,
+  /\bdespite\b/gi, /\bwhereas\b/gi, /\bwhile\b/gi, /\binstead\b/gi,
+  /\bnevertheless\b/gi, /\bassumption(s)?\b/gi, /\bframework(s)?\b/gi,
+  /\binterpretation(s)?\b/gi, /\bevidence\b/gi, /\bmethodology\b/gi,
+  /\bparadox(es)?\b/gi
+];
+
+const ARGUMENT_STRUCTURE_MARKERS = [
+  /\bclaim(s)?\b/gi, /\bcounterclaim(s)?\b/gi, /\bqualification(s)?\b/gi,
+  /\bevidence\b/gi, /\brebuttal(s)?\b/gi
+];
+
+const NUANCE_MARKERS = [
+  /\bmay\b/gi, /\bmight\b/gi, /\bappear(s)?\b/gi, /\bsuggest(s)?\b/gi,
+  /\barguably\b/gi, /\bpartially\b/gi, /\balthough\b/gi, /\bwhile\b/gi
+];
+
+// ── FORMAT SCORING HELPERS ───────────────────────────────────────────────────
+
 function wordCountScore(wordCount: number): number {
-  if (wordCount < 420 || wordCount > 620) return 0;
-  if (wordCount >= 420 && wordCount <= 440) return 60;
-  if (wordCount > 440 && wordCount <= 460) return 65;
-  if (wordCount > 460 && wordCount <= 480) return 70;
-  if (wordCount > 480 && wordCount <= 500) return 75;
-  if (wordCount > 500 && wordCount <= 520) return 80;
-  if (wordCount > 520 && wordCount <= 540) return 85;
-  if (wordCount > 540 && wordCount <= 560) return 90;
-  if (wordCount > 560 && wordCount <= 580) return 95;
-  if (wordCount > 580 && wordCount <= 600) return 97;
-  if (wordCount > 600 && wordCount <= 620) return 100;
-  return 0;
+  if (wordCount < 400 || wordCount > 620) return 0;
+  if (wordCount >= 560 && wordCount <= 620) return 10;
+  if (wordCount >= 520 && wordCount < 560) return 8;
+  if (wordCount >= 480 && wordCount < 520) return 6;
+  if (wordCount >= 460 && wordCount < 480) return 4;
+  return 2; // Under 460 but over 400
 }
 
-/**
- * Paragraph structure score.
- * Must be strictly 3, 4, 5, or 6 paragraphs.
- * 3-6 paragraphs = 100 (ideal skimmability)
- * Anything else (1, 2, or 7+) = 0 (strictly failed structure)
- */
 function paragraphScore(body: string): number {
   const count = body.split(/\n\s*\n/g).filter((p) => p.trim().length > 10).length;
-  if (count >= 3 && count <= 6) return 100;
+  if (count >= 3 && count <= 6) return 10;
   return 0;
 }
 
-/**
- * Question count score — must have exactly 3 questions (main_idea, inference, vocab).
- * This is a hard requirement; wrong count is a quality failure.
- */
 function questionScore(count: number): number {
-  if (count === 3) return 100;
-  if (count === 2) return 30; // partial — still usable with caution
-  return 0; // 0, 1, or 4+ questions is a hard failure
-}
-
-/**
- * Source trust bonus (additive, not a multiplier).
- * AI-generated passages from known-good models get a small credibility boost.
- */
-function sourceTrustBonus(source: string): number {
-  if (source === "gemini" || source === "curated") return 5;
-  if (source === "static_vault") return 0;
-  if (source === "seed") return -5;
+  if (count === 3) return 10;
+  if (count === 2) return 3;
   return 0;
 }
 
-export function evaluatePassageQuality(input: PassageQualityInput): PassageQualityResult {
+// ── LLM EVALUATOR CALL ────────────────────────────────────────────────────────
+
+async function evaluatePassageWithAI(
+  body: string,
+  title: string,
+  userCustomApiKey?: string | null
+): Promise<{ inference_potential: number; naturalness: number; title_quality: number }> {
+  const apiKey = userCustomApiKey || process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    console.warn("⚠️ No GEMINI_API_KEY found, returning default content scores (7/10)");
+    return { inference_potential: 7, naturalness: 7, title_quality: 7 };
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-3.1-flash-lite",
+      generationConfig: {
+        temperature: 0.0, // Strict, deterministic scoring
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            inference_potential: { type: SchemaType.NUMBER },
+            naturalness: { type: SchemaType.NUMBER },
+            title_quality: { type: SchemaType.NUMBER },
+          },
+          required: ["inference_potential", "naturalness", "title_quality"],
+        } as any,
+      },
+    });
+
+    const prompt = `
+        You are an expert reading comprehension test auditor. Evaluate the following passage and its title based on the criteria below.
+        
+        Passage:
+        ${body}
+        
+        Title:
+        ${title}
+        
+        Evaluate and score the following three dimensions from 0 to 10 (accept floats or ints, e.g., 8.5 or 8):
+        1. "inference_potential" (0-10): How many strong GMAT/CAT-style inference, assumption, author attitude, and paragraph role questions could naturally be created from this passage? High score means the passage is dense with implicit assumptions and logical pivots.
+        2. "naturalness" (0-10): Does this passage read like a real, professionally written magazine or scholarly journal article (e.g. Economist, Scientific American) as opposed to sounding like dry, robotic, or formulaic AI-generated text?
+        3. "title_quality" (0-10): Is the title creative, academically credible, specific, and organic (e.g., "When Evidence Outlives Theory") rather than templated or generic (e.g., "The Debate Over Memory", "Rethinking X")?
+        
+        Output the scores in the required JSON format.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.text()) as {
+      inference_potential: number;
+      naturalness: number;
+      title_quality: number;
+    };
+
+    return {
+      inference_potential: Math.max(0, Math.min(10, parsed.inference_potential || 7)),
+      naturalness: Math.max(0, Math.min(10, parsed.naturalness || 7)),
+      title_quality: Math.max(0, Math.min(10, parsed.title_quality || 7)),
+    };
+  } catch (err: any) {
+    console.warn(`⚠️ Gemini quality evaluation call failed: ${err.message}. Defaulting to scores (7/10)`);
+    return { inference_potential: 7, naturalness: 7, title_quality: 7 };
+  }
+}
+
+// ── CORE QUALITY EVALUATION ───────────────────────────────────────────────────
+
+export async function evaluatePassageQuality(
+  input: PassageQualityInput,
+  userCustomApiKey?: string | null
+): Promise<PassageQualityResult> {
+  const topic_key = extractTopicKey(input.body);
+  const title = input.title || buildPassageTitle(topic_key);
+
   const hasBannedLabel = BANNED_LABEL_PATTERNS.some((re) => re.test(input.body));
   const labelPenalty = hasBannedLabel ? 40 : 0;
 
-  const wScore = wordCountScore(input.word_count);
-  const pScore = paragraphScore(input.body);
-  const qScore = questionScore(input.questionCount);
-  const bonus = sourceTrustBonus(input.source);
+  // 1. Format Score (Max 30)
+  const fWord = wordCountScore(input.word_count);
+  const fPara = paragraphScore(input.body);
+  const fQuestion = questionScore(input.questionCount);
+  const formatScore = fWord + fPara + fQuestion;
 
-  const quality_score = clampScore(
-    wScore * 0.45 + pScore * 0.30 + qScore * 0.25 + bonus - labelPenalty
-  );
+  // 2. Content Heuristics (Max 45)
+  // 2.1 Concept Density (Max 15)
+  let conceptCount = 0;
+  for (const regex of CONCEPT_DENSITY_MARKERS) {
+    const matches = input.body.match(regex);
+    if (matches) conceptCount += matches.length;
+  }
+  const conceptScore = Math.min(15, conceptCount * 1.5);
+
+  // 2.2 Argument Structure (Max 15)
+  let argCount = 0;
+  for (const regex of ARGUMENT_STRUCTURE_MARKERS) {
+    const matches = input.body.match(regex);
+    if (matches) argCount += matches.length;
+  }
+  const argScore = Math.min(15, argCount * 3.0);
+
+  // 2.3 Author Nuance (Max 10)
+  let nuanceCount = 0;
+  for (const regex of NUANCE_MARKERS) {
+    const matches = input.body.match(regex);
+    if (matches) nuanceCount += matches.length;
+  }
+  const nuanceScore = Math.min(10, nuanceCount * 1.5);
+
+  // 2.4 Structural Variety (Max 5)
+  const paragraphs = input.body.split(/\n\s*\n/g).filter((p) => p.trim().length > 10);
+  let varietyScore = 5;
+  const genericWords = ["the", "a", "an", "this", "it", "these", "there"];
+  const startingWords = new Set<string>();
+
+  for (const p of paragraphs) {
+    const cleanText = p.trim().replace(/[^a-zA-Z\s]/g, "");
+    const firstWord = cleanText.split(/\s+/)[0]?.toLowerCase();
+    if (firstWord) {
+      if (genericWords.includes(firstWord)) {
+        varietyScore -= 1.0;
+      }
+      if (startingWords.has(firstWord)) {
+        varietyScore -= 1.5;
+      }
+      startingWords.add(firstWord);
+    }
+  }
+  varietyScore = Math.max(0, varietyScore);
+
+  // 3. LLM Evaluated Content Metrics (Max 25 out of 30 scaled)
+  // LLM scores sum to 30. We scale the 30-point LLM total to a maximum of 25 points.
+  const aiScores = await evaluatePassageWithAI(input.body, title, userCustomApiKey);
+  const rawAISum = aiScores.inference_potential + aiScores.naturalness + aiScores.title_quality;
+  const aiScoreScaled = (rawAISum / 30) * 25;
+
+  // 4. Source Trust Bonus / Penalty
+  let trustBonus = 0;
+  if (input.source === "gemini" || input.source === "curated") {
+    trustBonus = 5;
+  } else if (input.source === "seed") {
+    trustBonus = -5;
+  }
+
+  // Calculate final score out of 100
+  const finalScore = Math.max(0, Math.min(100, Math.round(
+    formatScore + conceptScore + argScore + nuanceScore + varietyScore + aiScoreScaled + trustBonus - labelPenalty
+  )));
+
+  // Scores < 50 go to draft as requested by the user, status >= 60 is ready.
+  // Note: passages between 50 and 59 are held for review (draft status) too.
+  // So status ready requires score >= 60.
+  const status = finalScore >= 60 ? "ready" : "draft";
 
   return {
-    status: quality_score >= 70 ? "ready" : "draft",
-    quality_score,
-    topic_key: extractTopicKey(input.body),
-    title: buildPassageTitle(extractTopicKey(input.body)),
+    status,
+    quality_score: finalScore,
+    topic_key,
+    title,
   };
 }

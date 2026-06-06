@@ -11,10 +11,11 @@ type SessionPhase = "idle" | "config" | "reading" | "mcq" | "results";
 
 export interface SessionConfig {
   target_wpm: number;
-  chunk_size: 3 | 4;
+  chunk_size: 2 | 3;
   fading_enabled: boolean;
   guide_enabled: boolean;
   domain?: string;
+  passage_id?: string;
 }
 
 export interface PendingResponse {
@@ -30,6 +31,7 @@ interface SessionState {
   config: SessionConfig | null;
   readingStartedAt: number | null;    // Date.now() ms timestamp
   elapsedMs: number;
+  timeSpentMs: number;
   responses: PendingResponse[];
   result: SessionResult | null;
   isSubmitting: boolean;
@@ -37,7 +39,7 @@ interface SessionState {
 
   startSession: (config: SessionConfig) => Promise<void>;
   prefetchPassage: (domain?: string) => Promise<void>;
-  markReadingDone: (elapsedMs: number) => void;
+  markReadingDone: (elapsedMs: number, timeSpentMs?: number) => void;
   submitAnswer: (response: PendingResponse) => void;
   submitSession: () => Promise<void>;
   resetSession: () => void;
@@ -82,6 +84,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   config: null,
   readingStartedAt: null,
   elapsedMs: 0,
+  timeSpentMs: 0,
   responses: [],
   result: null,
   isSubmitting: false,
@@ -109,8 +112,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Otherwise fetch one now
     set({ phase: "config", config, error: null, passage: null, responses: [], result: null });
     try {
-      const params: { domain?: string } = {};
+      const params: { domain?: string; passage_id?: string } = {};
       if (config.domain) params.domain = config.domain;
+      if (config.passage_id) params.passage_id = config.passage_id;
       
       const res = await apiClient.post<{ data: StartSessionResponse }>("/sessions/start", params);
       const normalized = normalizePassage(res.data.data);
@@ -128,20 +132,32 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   prefetchPassage: async (domain) => {
     try {
-      const params = domain ? { domain } : {};
-      const res = await apiClient.post<{ data: StartSessionResponse }>("/sessions/start", params);
-      const normalized = normalizePassage(res.data.data);
-      set({
-        passage: normalized,
-        passageDomain: domain ?? null,
-      });
+      const params: { domain?: string; prefetch: boolean } = { prefetch: true };
+      if (domain) params.domain = domain;
+      const res = await apiClient.post<{ data: StartSessionResponse | null }>("/sessions/start", params);
+      if (res.data.data) {
+        const normalized = normalizePassage(res.data.data);
+        set({
+          passage: normalized,
+          passageDomain: domain ?? null,
+        });
+      } else {
+        set({
+          passage: null,
+          passageDomain: null,
+        });
+      }
     } catch {
       // Silently fail prefetch
+      set({
+        passage: null,
+        passageDomain: null,
+      });
     }
   },
 
-  markReadingDone: (elapsedMs) => {
-    set({ elapsedMs, phase: "mcq" });
+  markReadingDone: (elapsedMs, timeSpentMs) => {
+    set({ elapsedMs, timeSpentMs: timeSpentMs ?? elapsedMs, phase: "mcq" });
   },
 
   submitAnswer: (response) => {
@@ -158,7 +174,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   submitSession: async () => {
-    const { passage, config, elapsedMs, responses, readingStartedAt } = get();
+    const { passage, config, elapsedMs, timeSpentMs, responses, readingStartedAt } = get();
     if (!passage || !config) return;
 
     set({ isSubmitting: true, error: null });
@@ -172,6 +188,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         fading_used: config.fading_enabled,
         guide_used: config.guide_enabled,
         timezone_offset: new Date().getTimezoneOffset(),
+        time_spent_ms: timeSpentMs,
         responses,
       };
       const res = await apiClient.post<{ data: SessionResult }>("/sessions", payload);
@@ -190,6 +207,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       config: null,
       readingStartedAt: null,
       elapsedMs: 0,
+      timeSpentMs: 0,
       responses: [],
       result: null,
       isSubmitting: false,

@@ -6,31 +6,16 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-import { useUserStore } from "@/store";
+import { useUserStore, useUIStore } from "@/store";
 
 export default function Navbar() {
   const { pathname } = useLocation();
   const user = useUserStore((s) => s.user);
+  const theme = useUIStore((s) => s.theme);
+  const toggleTheme = useUIStore((s) => s.toggleTheme);
   const isAdmin = !!user?.is_admin;
   const [isOpen, setIsOpen] = useState(false);
 
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem("readshift_theme");
-    return (saved as "light" | "dark") || "dark";
-  });
-
-  useEffect(() => {
-    if (theme === "light") {
-      document.body.classList.add("light");
-    } else {
-      document.body.classList.remove("light");
-    }
-    localStorage.setItem("readshift_theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
 
   const navLinks = [
     { to: "/dashboard", label: "Dashboard" },

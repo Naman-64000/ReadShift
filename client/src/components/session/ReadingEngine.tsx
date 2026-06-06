@@ -19,6 +19,7 @@ interface ReadingEngineProps {
   highlightIntensity: "none" | "subtle" | "moderate" | "intense";
   autoCenterScroll?: boolean;
   isPaused?: boolean;
+  isCatDefault?: boolean;
 }
 
 const colWidthClass: Record<ColWidth, string> = {
@@ -37,6 +38,7 @@ export default function ReadingEngine({
   highlightIntensity,
   autoCenterScroll = true,
   isPaused = false,
+  isCatDefault = false,
 }: ReadingEngineProps) {
   const activeChunkRef = useRef<HTMLSpanElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,9 +120,13 @@ export default function ReadingEngine({
       <p
         className={cn(
           "mx-auto leading-[1.9] text-slate-300 relative select-none",
-          colWidthClass[colWidth]
+          colWidthClass[colWidth],
+          isCatDefault ? "font-sans" : "font-serif"
         )}
-        style={{ fontSize: `${fontSizePx}px` }}
+        style={{
+          fontSize: `${fontSizePx}px`,
+          fontFamily: isCatDefault ? "Arial, Calibri, sans-serif" : undefined
+        }}
       >
         {words.map(({ chunkIdx, words: chunkWords, isParagraphStart, isActive }) => (
           <span key={chunkIdx}>

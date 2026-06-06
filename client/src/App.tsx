@@ -2,7 +2,7 @@
  * client/src/App.tsx
  */
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useLayoutEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/shared/Navbar";
 import Toast from "@/components/shared/Toast";
@@ -79,9 +79,15 @@ export default function App() {
     }
   }, [session, fetchProfile]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
+    if (theme === "light") {
+      document.body.classList.add("light");
+    } else {
+      document.body.classList.remove("light");
+    }
   }, [theme]);
+
 
   if (loading) return <LoadingSpinner fullPage />;
 

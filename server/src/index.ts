@@ -13,6 +13,7 @@ import { logger } from "./lib/logger.js";
 import { startWorkers } from "./worker.js";
 import { verifyRedisConnection } from "./lib/redis.js";
 import { globalRateLimit } from "./middleware/rateLimiter.js";
+import { timezoneMiddleware } from "./middleware/timezone.js";
 
 // Routes
 import usersRouter       from "./routes/users.js";
@@ -21,12 +22,14 @@ import passagesRouter    from "./routes/passages.js";
 import calibrationsRouter from "./routes/calibrations.js";
 import dashboardRouter   from "./routes/dashboard.js";
 import adminRouter       from "./routes/admin.js";
+import drillsRouter      from "./routes/drills.js";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
 
 // ── Global middleware ─────────────────────────────────────────
 app.use(helmet());
+app.use(timezoneMiddleware);
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -70,6 +73,7 @@ app.use("/api/passages",     passagesRouter);
 app.use("/api/calibrations", calibrationsRouter);
 app.use("/api/dashboard",    dashboardRouter);
 app.use("/api/admin",        adminRouter);
+app.use("/api/drills",       drillsRouter);
 
 // ── Global error handler (must be last) ───────────────────────
 app.use(errorHandler);

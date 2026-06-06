@@ -41,6 +41,7 @@ export interface SessionSubmitPayload {
   fading_used: boolean;
   guide_used: boolean;
   timezone_offset: number;
+  time_spent_ms?: number;
   responses: Array<{
     question_id: string;
     selected_index: 0 | 1 | 2 | 3;

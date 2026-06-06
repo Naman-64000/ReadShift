@@ -214,6 +214,7 @@ export async function getUserSeenPassages(req: Request, res: Response, next: Nex
           const sess = sessionMap.get(s.passage_id);
           return {
             seen_at: s.seen_at,
+            time_spent_ms: s.time_spent_ms,
             passage: s.passage,
             completed_session: sess
               ? {
@@ -243,8 +244,9 @@ export async function resetUserSeenPassage(req: Request, res: Response, next: Ne
     });
     if (!record) throw new AppError("NOT_FOUND", "Seen record not found for this user/passage combination", 404);
 
-    await prisma.userPassageSeen.delete({
+    await prisma.userPassageSeen.update({
       where: { user_id_passage_id: { user_id: userId, passage_id: passageId } },
+      data: { reallowed: true },
     });
 
     res.json({ success: true, data: { reset: true, user_id: userId, passage_id: passageId } });

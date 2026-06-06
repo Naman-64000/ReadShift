@@ -6,7 +6,8 @@ import { prisma } from "../lib/prisma.js";
 import { AppError } from "../types/index.js";
 import crypto from "crypto";
 import { staticVault } from "../data/staticVault.js";
-import { buildPassageTitle } from "./passageQualityService.js";
+import { buildPassageTitle, evaluatePassageQuality } from "./passageQualityService.js";
+import { aiService } from "./aiService.js";
 
 function weightedRandomPick<T>(items: T[], getWeight: (item: T) => number): T | null {
   if (!items.length) return null;
@@ -22,14 +23,54 @@ function weightedRandomPick<T>(items: T[], getWeight: (item: T) => number): T | 
 
 export const sessionService = {
   /** Pick an unseen passage for this user, atomically record the view */
-  async pickPassage(userId: string, domain?: string) {
+  async pickPassage(userId: string, domain?: string, prefetch?: boolean, passageId?: string) {
 
-    console.log(`[pickPassage] userId: ${userId}, domain: ${domain}`);
+    console.log(`[pickPassage] userId: ${userId}, domain: ${domain}, prefetch: ${prefetch}, passageId: ${passageId}`);
+
+    if (passageId) {
+      const explicitPassage = await prisma.passage.findUnique({
+        where: { id: passageId },
+        include: {
+          questions: { select: { id: true, passage_id: true, type: true, stem: true, options: true } },
+        },
+      });
+      if (!explicitPassage) throw new AppError("NOT_FOUND", "Requested passage not found", 404);
+
+      const alreadySeen = await prisma.userPassageSeen.findUnique({
+        where: { user_id_passage_id: { user_id: userId, passage_id: explicitPassage.id } },
+      });
+      if (!alreadySeen) {
+        await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: explicitPassage.id } });
+      } else if (alreadySeen.reallowed) {
+        await prisma.userPassageSeen.update({
+          where: { id: alreadySeen.id },
+          data: { reallowed: false, seen_at: new Date() },
+        });
+      }
+
+      await prisma.passageAssignment.create({
+        data: {
+          user_id: userId,
+          passage_id: explicitPassage.id,
+          domain_requested: (explicitPassage.domain as any) ?? null,
+        },
+      });
+
+      if (explicitPassage.questions) {
+        const q = [...explicitPassage.questions];
+        for (let i = q.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [q[i], q[j]] = [q[j], q[i]];
+        }
+        explicitPassage.questions = q;
+      }
+      return explicitPassage;
+    }
 
     const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
     const [seen, activeAssignments] = await Promise.all([
       prisma.userPassageSeen.findMany({
-        where: { user_id: userId },
+        where: { user_id: userId, reallowed: false },
         select: { passage_id: true },
       }),
       prisma.passageAssignment.findMany({
@@ -208,41 +249,78 @@ export const sessionService = {
       }
     }
 
-    // ── Second Failover: Active Recycling of oldest seen passages ──
+    // ── Second Failover: On-the-Fly Dynamic Generation ──
     if (!passage) {
-      console.log(`[pickPassage] All pools exhausted. Triggering Active Recycling Fallback...`);
+      if (prefetch) {
+        console.log(`[pickPassage] Pool exhausted during prefetch, skipping dynamic generation.`);
+        return null;
+      }
+      console.log(`[pickPassage] All pools and vault exhausted. Generating a brand-new passage dynamically...`);
       
-      const oldestSeen = await prisma.userPassageSeen.findFirst({
-        where: {
-          user_id: userId,
-          passage: {
-            flagged: false,
-            status: "ready",
-          },
-        },
-        orderBy: { seen_at: "asc" }, // oldest seen first
-        select: {
-          passage_id: true,
-        },
-      });
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { preferences: true },
+        });
 
-      if (oldestSeen) {
-        passage = await prisma.passage.findUnique({
-          where: { id: oldestSeen.passage_id },
+        const validDomains = ["business", "science", "history", "abstract", "social"];
+        let domainToGenerate = chosenDomain;
+        if (!domainToGenerate || !validDomains.includes(domainToGenerate)) {
+          const allowedDomains = user?.preferences?.domains && user.preferences.domains.length > 0
+            ? user.preferences.domains
+            : validDomains;
+          const randomIndex = Math.floor(Math.random() * allowedDomains.length);
+          domainToGenerate = allowedDomains[randomIndex];
+        }
+        const userApiKey = user?.preferences?.gemini_api_key || null;
+
+        const aiPassage = await aiService.generatePassage(domainToGenerate, userApiKey);
+        const hash = crypto.createHash("sha256").update(aiPassage.body).digest("hex");
+        const generatedQuestions = await aiService.generateQuestions(aiPassage.body, userApiKey);
+        
+        const quality = await evaluatePassageQuality({
+          body: aiPassage.body,
+          word_count: aiPassage.word_count,
+          questionCount: generatedQuestions.length,
+          source: user?.email || "gemini",
+          title: aiPassage.title,
+        }, userApiKey);
+
+        passage = await prisma.passage.create({
+          data: {
+            body: aiPassage.body,
+            word_count: aiPassage.word_count,
+            domain: aiPassage.domain as any,
+            generated_by: aiPassage.generated_by,
+            source: user?.email || "gemini",
+            status: quality.status === "ready" ? "ready" : "draft",
+            quality_score: quality.quality_score,
+            title: aiPassage.title || quality.title,
+            topic_key: quality.topic_key,
+            hash,
+            paragraph_roadmaps: aiPassage.paragraph_roadmaps,
+            skim_highlights: aiPassage.skim_highlights,
+            questions: {
+              create: generatedQuestions.map((q) => ({
+                type: q.type as any,
+                stem: q.stem,
+                options: q.options,
+                correct_index: q.correct_index,
+                explanations: q.explanations,
+              })),
+            },
+          },
           include: {
             questions: {
               select: { id: true, passage_id: true, type: true, stem: true, options: true },
             },
           },
         });
-
-        if (passage) {
-          console.log(`[pickPassage] Recycling passage ID: ${passage.id}, Topic: ${passage.topic_key}`);
-          await prisma.userPassageSeen.update({
-            where: { user_id_passage_id: { user_id: userId, passage_id: passage.id } },
-            data: { seen_at: new Date() },
-          });
-        }
+        
+        console.log(`[pickPassage] Brand-new passage dynamically generated and saved: ID: ${passage.id}, Title: "${passage.title}"`);
+      } catch (genError) {
+        console.error(`[pickPassage] Dynamic generation failed:`, genError);
+        throw new AppError("GENERATION_FAILED", "Failed to generate a new passage on the fly", 500);
       }
     }
 
@@ -256,6 +334,11 @@ export const sessionService = {
     });
     if (!alreadySeen) {
       await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: passage.id } });
+    } else if (alreadySeen.reallowed) {
+      await prisma.userPassageSeen.update({
+        where: { id: alreadySeen.id },
+        data: { reallowed: false, seen_at: new Date() },
+      });
     }
 
     await prisma.passageAssignment.create({
@@ -279,7 +362,6 @@ export const sessionService = {
     return passage;
   },
 
-  /** Submit a completed session — server computes WPM, scoring, level check */
   async createSession(userId: string, payload: {
     passage_id: string;
     target_wpm: number;
@@ -289,6 +371,7 @@ export const sessionService = {
     fading_used: boolean;
     guide_used: boolean;
     timezone_offset?: number;
+    time_spent_ms?: number;
     responses: Array<{ question_id: string; selected_index: number; time_taken_ms: number }>;
   }) {
     const passage = await prisma.passage.findUnique({
@@ -392,6 +475,18 @@ export const sessionService = {
           last_session_at: now,
         },
       });
+
+      if (payload.time_spent_ms !== undefined) {
+        await tx.userPassageSeen.updateMany({
+          where: {
+            user_id: userId,
+            passage_id: payload.passage_id,
+          },
+          data: {
+            time_spent_ms: payload.time_spent_ms,
+          },
+        });
+      }
 
       return { session: sess };
     });

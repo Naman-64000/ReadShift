@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiClient } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import Button from "@/components/shared/Button";
 import AdvancedDiagnostics from "@/components/dashboard/AdvancedDiagnostics";
 import { DOMAINS } from "@/lib/constants";
-import { comprehensionToPercent, formatDomain } from "@/lib/utils";
+import { comprehensionToPercent, formatDomain, msToTime } from "@/lib/utils";
 
 interface HistoryPassage {
   id: string;
@@ -32,6 +32,7 @@ interface HistoryPassage {
 interface HistoryItem {
   id: string;
   seen_at: string;
+  time_spent_ms: number;
   passage: HistoryPassage;
   session: {
     id: string;
@@ -44,6 +45,7 @@ interface HistoryItem {
 
 export default function DashboardScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { summary, error, refresh } = useDashboard();
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -51,10 +53,16 @@ export default function DashboardScreen() {
   const [selectedPassage, setSelectedPassage] = useState<HistoryPassage | null>(null);
 
   useEffect(() => {
-    if (summary && summary.baseline_wpm === 0) {
-      navigate("/onboarding");
+    if (history.length > 0 && location.state?.openPassageId) {
+      const item = history.find((h) => h.passage.id === location.state.openPassageId);
+      if (item) {
+        setSelectedPassage(item.passage);
+        navigate(location.pathname, { replace: true, state: {} });
+      }
     }
-  }, [summary, navigate]);
+  }, [history, location.state, navigate, location.pathname]);
+
+
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -115,9 +123,9 @@ export default function DashboardScreen() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatCard
             label="Current WPM"
-            value={summary.current_wpm}
+            value={summary.sessions_completed === 0 ? "N/A" : summary.current_wpm}
             subtitle={`Baseline: ${summary.baseline_wpm} WPM`}
-            trend={summary.current_wpm > summary.baseline_wpm ? "up" : "neutral"}
+            trend={summary.sessions_completed > 0 && summary.current_wpm > summary.baseline_wpm ? "up" : "neutral"}
             accent="text-indigo-400"
           />
           <StatCard
@@ -131,11 +139,13 @@ export default function DashboardScreen() {
         </div>
 
         {/* Recommendation */}
-        {summary.recommended_wpm > 0 && (
+        {(summary.recommended_wpm > 0 || summary.baseline_wpm === 0) && (
           <RecommendationCard
             recommendedWpm={summary.recommended_wpm}
             recommendedDomain={summary.recommended_domain}
             currentWpm={summary.current_wpm}
+            baselineWpm={summary.baseline_wpm}
+            sessionsCompleted={summary.sessions_completed}
           />
         )}
 
@@ -152,14 +162,14 @@ export default function DashboardScreen() {
               </div>
               <h2 className="text-base sm:text-lg font-black text-[rgb(var(--text))]">Metronome Drills</h2>
               <p className="text-xs text-slate-400 leading-relaxed max-w-md">
-                Kill your inner voice. High-speed visual processing drills (300–500 WPM) train your eyes
-                to bypass phonetic relay and read at elite speed.
+                Kill your inner voice. Progressive 6-level RSVP drills from 180 to 400 WPM train your
+                eyes to read in phrases and bypass phonetic relay at CAT exam speed.
               </p>
               <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
                 {[
-                  { icon: "👁️", text: "3 speed tiers" },
-                  { icon: "⚡", text: "Visual metronome flash" },
-                  { icon: "🧠", text: "15 drill texts" },
+                  { icon: "⚡", text: "6 progressive levels" },
+                  { icon: "🧠", text: "180–400 WPM range" },
+                  { icon: "👁️", text: "30 drill texts" },
                 ].map(({ icon, text }) => (
                   <span key={text} className="text-[11px] text-slate-500 flex items-center gap-1">
                     <span>{icon}</span>{text}
@@ -267,13 +277,12 @@ export default function DashboardScreen() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2.5 sm:text-right shrink-0">
-                      {/* Status indicator */}
-                      {!isCompleted ? (
+                                        {!isCompleted ? (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
                           Left in between ❌
                         </span>
                       ) : !item.session!.mcqs_enabled ? (
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/20 text-slate-300">
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                           MCQs Disabled ✓
                         </span>
                       ) : (
@@ -288,11 +297,18 @@ export default function DashboardScreen() {
                           Completed ✓ ({item.session!.comprehension}/3 correct)
                         </span>
                       )}
-
-                      {/* WPM Display */}
-                      {isCompleted && (
-                        <span className="text-xs font-mono font-bold text-slate-400 min-w-[70px] text-right">
+ 
+                      {/* WPM Display / Duration */}
+                      {isCompleted ? (
+                        <span className={cn(
+                          "text-xs font-mono font-bold min-w-[70px] text-right",
+                          !item.session!.mcqs_enabled ? "text-emerald-400" : "text-slate-400"
+                        )}>
                           {item.session!.actual_wpm} WPM
+                        </span>
+                      ) : (
+                        <span className="text-xs font-mono font-bold min-w-[70px] text-right text-slate-500">
+                          ⏱️ {msToTime(item.time_spent_ms)}
                         </span>
                       )}
 
@@ -314,6 +330,10 @@ export default function DashboardScreen() {
           <HistoryPassageModal
             passage={selectedPassage}
             onClose={() => setSelectedPassage(null)}
+            onStartSession={(passageId, domain) => {
+              setSelectedPassage(null);
+              navigate("/session/config", { state: { drillDomain: domain, passageId, fromDashboard: true } });
+            }}
           />
         )}
       </AnimatePresence>
@@ -336,9 +356,11 @@ function getDomainEmoji(domain: string) {
 function HistoryPassageModal({
   passage,
   onClose,
+  onStartSession,
 }: {
   passage: HistoryPassage;
   onClose: () => void;
+  onStartSession: (passageId: string, domain: string) => void;
 }) {
   return (
     <div
@@ -387,7 +409,10 @@ function HistoryPassageModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/8 flex justify-end">
+        <div className="p-4 border-t border-white/8 flex justify-between">
+          <Button size="sm" className="min-w-32 bg-indigo-600 hover:bg-indigo-500 text-white" onClick={() => onStartSession(passage.id, passage.domain)}>
+            Start as session
+          </Button>
           <Button size="sm" variant="secondary" onClick={onClose} className="min-w-28">
             Close
           </Button>

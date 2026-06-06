@@ -10,6 +10,8 @@ import { prisma } from "../lib/prisma.js";
 
 const StartSchema = z.object({
   domain: z.enum(["business", "science", "history", "abstract", "social"]).optional(),
+  prefetch: z.boolean().optional(),
+  passage_id: z.string().uuid().optional(),
 });
 
 const StartSessionResponseSchema = z.object({
@@ -27,6 +29,7 @@ const StartSessionResponseSchema = z.object({
     hash: z.string().nullable().optional(),
     flagged: z.boolean(),
     paragraph_roadmaps: z.array(z.string()).default([]),
+    skim_highlights: z.array(z.string()).default([]),
     created_at: z.date(),
   }),
   questions: z.array(
@@ -49,6 +52,7 @@ const SubmitSchema = z.object({
   fading_used: z.boolean(),
   guide_used: z.boolean(),
   timezone_offset: z.number().int().optional(),
+  time_spent_ms: z.number().int().nonnegative().optional(),
   responses: z.array(z.object({
     question_id: z.string().uuid(),
     selected_index: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
@@ -62,8 +66,13 @@ export async function startSession(req: Request, res: Response, next: NextFuncti
     if (!parsed.success) throw new AppError("VALIDATION_ERROR", parsed.error.message, 400);
     const passage = await sessionService.pickPassage(
       req.auth!.userId,
-      parsed.data.domain
+      parsed.data.domain,
+      parsed.data.prefetch,
+      parsed.data.passage_id
     );
+    if (!passage) {
+      return res.json({ success: true, data: null });
+    }
     const { questions, ...passageOnly } = passage;
     const data = StartSessionResponseSchema.parse({ passage: passageOnly, questions });
     res.json({ success: true, data });
@@ -117,6 +126,11 @@ export async function markPassageSeen(req: Request, res: Response, next: NextFun
     });
     if (!alreadySeen) {
       await prisma.userPassageSeen.create({ data: { user_id: req.auth!.userId, passage_id } });
+    } else if (alreadySeen.reallowed) {
+      await prisma.userPassageSeen.update({
+        where: { id: alreadySeen.id },
+        data: { reallowed: false, seen_at: new Date() },
+      });
     }
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -129,7 +143,7 @@ export async function getDomainStatus(req: Request, res: Response, next: NextFun
     const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
     const [seen, activeAssignments] = await Promise.all([
       prisma.userPassageSeen.findMany({
-        where: { user_id: userId },
+        where: { user_id: userId, reallowed: false },
         select: { passage_id: true },
       }),
       prisma.passageAssignment.findMany({
@@ -199,6 +213,7 @@ export async function getUserHistory(req: Request, res: Response, next: NextFunc
       return {
         id: h.id,
         seen_at: h.seen_at,
+        time_spent_ms: h.time_spent_ms,
         passage: {
           id: h.passage.id,
           body: h.passage.body,
@@ -223,5 +238,68 @@ export async function getUserHistory(req: Request, res: Response, next: NextFunc
   } catch (err) {
     next(err);
   }
+}
+
+const AbandonSchema = z.object({
+  passage_id: z.string().uuid(),
+  elapsed_ms: z.number().int().nonnegative(),
+  never_started: z.boolean().optional(),
+});
+
+export async function abandonSession(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = AbandonSchema.safeParse(req.body);
+    if (!parsed.success) throw new AppError("VALIDATION_ERROR", parsed.error.message, 400);
+
+    const userId = req.auth!.userId;
+    const { passage_id, elapsed_ms, never_started } = parsed.data;
+
+    // Find the latest passage assignment for this user and passage
+    const latestAssignment = await prisma.passageAssignment.findFirst({
+      where: {
+        user_id: userId,
+        passage_id: passage_id,
+      },
+      orderBy: {
+        assigned_at: "desc",
+      },
+    });
+
+    if (never_started) {
+      if (latestAssignment) {
+        await prisma.passageAssignment.delete({
+          where: { id: latestAssignment.id },
+        });
+      }
+      // Delete the UserPassageSeen record so the passage returns to the pool and doesn't show in reading history
+      await prisma.userPassageSeen.deleteMany({
+        where: {
+          user_id: userId,
+          passage_id: passage_id,
+        },
+      });
+      console.log(`[abandonSession] User ${userId} cancelled start session for passage ${passage_id} before reading.`);
+    } else {
+      if (latestAssignment) {
+        await prisma.passageAssignment.update({
+          where: { id: latestAssignment.id },
+          data: { left_at_ms: elapsed_ms },
+        });
+        console.log(`[abandonSession] User ${userId} left passage ${passage_id} in middle at ${elapsed_ms}ms`);
+      }
+      // Update UserPassageSeen time_spent_ms
+      await prisma.userPassageSeen.updateMany({
+        where: {
+          user_id: userId,
+          passage_id: passage_id,
+        },
+        data: {
+          time_spent_ms: elapsed_ms,
+        },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) { next(err); }
 }
 

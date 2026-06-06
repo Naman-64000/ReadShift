@@ -47,11 +47,12 @@ export async function runPassageWarming(
 
       // 3. Evaluate quality & persist
       const hash = crypto.createHash("sha256").update(passageData.body).digest("hex");
-      const quality = evaluatePassageQuality({
+      const quality = await evaluatePassageQuality({
         body: passageData.body,
         word_count: passageData.word_count,
         questionCount: questions.length,
         source: "gemini",
+        title: passageData.title,
       });
 
       await prisma.passage.create({
@@ -66,6 +67,7 @@ export async function runPassageWarming(
           title: passageData.title || quality.title,
           topic_key: quality.topic_key,
           paragraph_roadmaps: passageData.paragraph_roadmaps,
+          skim_highlights: passageData.skim_highlights,
           hash,
           questions: {
             create: questions.map((q) => ({

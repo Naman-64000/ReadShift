@@ -17,10 +17,14 @@ import { DRILL_TIERS } from "@/lib/drillTexts";
 import type { DrillTier, DrillText } from "@/lib/drillTexts";
 import Button from "@/components/shared/Button";
 import { useUIStore } from "@/store";
+import { apiClient } from "@/lib/apiClient";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Phase = "select" | "ready" | "running" | "comprehension" | "done";
+
+export type DrillTierId = DrillTier["id"];
+
 
 interface DrillChunk {
   words: string[];
@@ -55,173 +59,121 @@ function calcActualWpm(wordCount: number, elapsedMs: number): number {
   return Math.round((wordCount / elapsedMs) * 60_000);
 }
 
+/**
+ * Renders RSVP word chunks following RSVP research guidelines:
+ *
+ *  L1–L2 (stage1, stage2): Completely plain — no highlighting, no colors.
+ *           Brain learns actual reading; maximum transfer to CAT.
+ *
+ *  L3–L5 (stage3, stage4, stage5): Subtle single-character ORP fixation marker.
+ *           Only ONE character at the center-left (~30%) of the first word
+ *           gets a quiet dark-red color — pure fixation anchor, no bold,
+ *           no half-word bionic reading, no color-changing per word.
+ *
+ *  L6 (stage6): Full-page CAT simulation — not rendered here.
+ */
 function renderScientificChunk(words: string[], stageId: string) {
   if (words.length === 0) return null;
 
-  // Set up word lists for transition detection
-  const contrastWords = ["however", "but", "nevertheless", "yet", "nonetheless", "conversely", "instead", "rather"];
-  const additionWords = ["moreover", "furthermore", "additionally", "similarly", "likewise"];
-  const conclusionWords = ["therefore", "thus", "hence", "consequently", "accordingly", "so"];
-
-  const getWordColorClass = (word: string, stage: string) => {
-    const clean = word.toLowerCase().replace(/[^a-z]/g, "");
-    if (stage === "stage1") {
-      if (contrastWords.includes(clean)) return "text-rose-500 font-extrabold";
-      if (additionWords.includes(clean)) return "text-cyan-400 font-extrabold";
-      if (conclusionWords.includes(clean)) return "text-emerald-400 font-extrabold";
-    } else if (stage === "stage2") {
-      // Subtle faded colors for Stage 2
-      if (contrastWords.includes(clean) || additionWords.includes(clean) || conclusionWords.includes(clean)) {
-        return "text-indigo-300 font-bold border-b border-indigo-500/20"; // subtle slate-indigo accent
-      }
-    }
-    return "";
-  };
-
-  // Stage 1: Single-word RSVP with flashy ORP highlighting
-  if (stageId === "stage1") {
-    const word = words[0];
-    const colorClass = getWordColorClass(word, stageId) || "text-rose-400 font-extrabold";
-
-    // Standard ORP calculation
-    const orpLen = Math.max(1, Math.min(Math.floor(word.length / 2), Math.round(word.length * 0.3)));
-    const orpPart = word.substring(0, orpLen);
-    const restPart = word.substring(orpLen);
-
+  // ── L1 & L2: completely plain ──────────────────────────────────────────────
+  if (stageId === "stage1" || stageId === "stage2") {
     return (
-      <span className="font-extrabold">
-        <span className={colorClass}>{orpPart}</span>
-        <span className="text-white">{restPart}</span>
-      </span>
-    );
-  }
-
-  // Stage 2: 2-word phrase chunks, subtle colors, no ORP
-  if (stageId === "stage2") {
-    return (
-      <span className="space-x-2">
-        {words.map((w, idx) => {
-          const colorClass = getWordColorClass(w, stageId);
-          return (
-            <span key={idx} className={cn("text-white font-medium", colorClass)}>
-              {w}
-            </span>
-          );
-        })}
-      </span>
-    );
-  }
-
-  // Stage 3: Centered stark RSVP, black text / high-contrast
-  if (stageId === "stage3") {
-    return (
-      <span className="text-stone-900 font-semibold tracking-wide space-x-2">
+      <span className="tracking-normal">
         {words.join(" ")}
       </span>
     );
   }
 
-  // Default fallback (Stage 4 / 5 shouldn't use RSVP centered container chunk, but in case)
+  // ── L3, L4, L5: single-character ORP marker on first word ─────────────────
+  // Research: one fixation point near center-left reduces saccades without
+  // adding visual processing load from colors or bold spans.
+  if (stageId === "stage3" || stageId === "stage4" || stageId === "stage5") {
+    const renderWordWithOrp = (word: string, addOrp: boolean) => {
+      if (!addOrp || word.length <= 2) {
+        return <span>{word}</span>;
+      }
+      // ORP position: ~30% into the word, minimum index 1
+      const orpIdx = Math.max(1, Math.round(word.length * 0.3));
+      const before = word.substring(0, orpIdx);
+      const marker = word[orpIdx];
+      const after = word.substring(orpIdx + 1);
+      return (
+        <span>
+          {before}
+          <span className="drill-orp-single">{marker}</span>
+          {after}
+        </span>
+      );
+    };
+
+    return (
+      <span className="tracking-normal">
+        {words.map((w, idx) => (
+          <span key={idx}>
+            {idx > 0 && " "}
+            {renderWordWithOrp(w, idx === 0)}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  // Stage 6 / default: plain
   return <span>{words.join(" ")}</span>;
 }
 
 // ── Tier card colors ─────────────────────────────────────────────────────────
 
 const tierBg: Record<DrillTier["id"], string> = {
-  stage1: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-750",
-  stage2: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-750",
-  stage3: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-750",
+  stage1: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
+  stage2: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
+  stage3: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
+  stage4: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
+  stage5: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
+  stage6: "border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700",
 };
 const tierAccent: Record<DrillTier["id"], string> = {
   stage1: "text-rose-400",
   stage2: "text-cyan-400",
-  stage3: "text-emerald-400",
+  stage3: "text-indigo-400",
+  stage4: "text-amber-400",
+  stage5: "text-violet-400",
+  stage6: "text-emerald-400",
 };
 const tierBadge: Record<DrillTier["id"], string> = {
   stage1: "bg-rose-950/30 text-rose-400 border-rose-900/30",
   stage2: "bg-cyan-950/30 text-cyan-400 border-cyan-900/30",
-  stage3: "bg-emerald-950/30 text-emerald-400 border-emerald-900/30",
+  stage3: "bg-indigo-950/30 text-indigo-400 border-indigo-900/30",
+  stage4: "bg-amber-950/30 text-amber-400 border-amber-900/30",
+  stage5: "bg-violet-950/30 text-violet-400 border-violet-900/30",
+  stage6: "bg-emerald-950/30 text-emerald-400 border-emerald-900/30",
 };
 const metronomeColor: Record<DrillTier["id"], string> = {
-  stage1: "border-rose-950 shadow-sm",
-  stage2: "border-stone-800 shadow-sm", // Stark gray ring
-  stage3: "border-transparent",
-};
-const metronomeDotColor: Record<DrillTier["id"], string> = {
-  stage1: "bg-rose-500",
-  stage2: "bg-stone-300", // Stark neutral dot
-  stage3: "bg-transparent",
-};
-const metronomePulse: Record<DrillTier["id"], string> = {
-  stage1: "transparent",
-  stage2: "transparent",
-  stage3: "transparent",
+  stage1: "border-rose-900 shadow-sm",
+  stage2: "border-cyan-900 shadow-sm",
+  stage3: "border-indigo-900 shadow-sm",
+  stage4: "border-amber-900 shadow-sm",
+  stage5: "border-violet-900 shadow-sm",
+  stage6: "border-transparent",
 };
 
-// ── Visual Metronome Flash ────────────────────────────────────────────────────
 
-interface MetronomeProps {
-  tier: DrillTier;
-  beatCount: number;
-  intervalMs: number;
-}
 
-function MetronomeFlash({ tier, beatCount, intervalMs }: MetronomeProps) {
-  const flashDuration = Math.min(intervalMs * 0.55, 260);
-
-  return (
-    <div className="fixed bottom-8 right-6 sm:bottom-10 sm:right-10 z-50 flex flex-col items-center gap-2 pointer-events-none select-none">
-      {/* Beat count */}
-      <div className={cn("text-[10px] font-black uppercase tracking-widest tabular-nums", tierAccent[tier.id])}>
-        {beatCount.toString().padStart(3, "0")}
-      </div>
-
-      {/* Outer ring + inner dot */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={beatCount}
-          initial={{ scale: 1.35, opacity: 0.3 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: flashDuration / 1000, ease: "easeOut" }}
-          className={cn(
-            "w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 flex items-center justify-center",
-            metronomeColor[tier.id]
-          )}
-        >
-          <motion.div
-            key={`dot-${beatCount}`}
-            initial={{ scale: 1.8, opacity: 0.5 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: flashDuration / 1000, ease: "easeOut" }}
-            className={cn("w-5 h-5 sm:w-6 sm:h-6 rounded-full", metronomeDotColor[tier.id])}
-            style={{ boxShadow: `0 0 12px ${metronomePulse[tier.id]}` }}
-          />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* WPM label */}
-      <div className={cn("text-[10px] font-bold uppercase tracking-widest", tierAccent[tier.id])}>
-        {tier.targetWpm} WPM
-      </div>
-    </div>
-  );
-}
 
 // ── Tier Selector ─────────────────────────────────────────────────────────────
 
 interface TierSelectorProps {
   onSelect: (tier: DrillTier) => void;
-  duration: 20 | 40 | 60;
-  onChangeDuration: (d: 20 | 40 | 60) => void;
 }
 
-function TierSelector({ onSelect, duration, onChangeDuration }: TierSelectorProps) {
+function TierSelector({ onSelect }: TierSelectorProps) {
+  const [showResearch, setShowResearch] = useState(false);
   return (
     <div className="min-h-screen pt-20 pb-16 px-4 flex flex-col items-center">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-2xl space-y-8"
+        className="w-full max-w-3xl space-y-8"
       >
         {/* Header */}
         <div className="text-center space-y-3">
@@ -242,9 +194,9 @@ function TierSelector({ onSelect, duration, onChangeDuration }: TierSelectorProp
           <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">How it works</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { icon: "1", label: "Read by beat", desc: "Track each chunk with a fixed target WPM while timing adapts to the words" },
-              { icon: "2", label: "Different words, different weight", desc: "Longer words, syllables, and sentence transitions get slightly more time" },
-              { icon: "3", label: "Stay in rhythm", desc: "The total pace stays locked while the timing shifts within the chunk sequence" },
+              { icon: "1", label: "Read by beat", desc: "Each chunk flashes at your target WPM — LAAP timing adapts slightly for complex words" },
+              { icon: "2", label: "6 progressive levels", desc: "L1–L2 build rhythm at 180–220 WPM; L5 overloads at 400 WPM to make your target exam pace feel slow and highly manageable" },
+              { icon: "3", label: "Stay in rhythm", desc: "Total pace stays locked at the target WPM as timing shifts within the chunk sequence" },
             ].map(({ icon, label, desc }) => (
               <div key={label} className="flex items-start gap-3">
                 <span className="mt-0.5 shrink-0 h-6 w-6 rounded-full border border-slate-700 bg-slate-800 flex items-center justify-center text-[10px] font-black text-stone-300">{icon}</span>
@@ -257,29 +209,26 @@ function TierSelector({ onSelect, duration, onChangeDuration }: TierSelectorProp
           </div>
         </div>
 
-        {/* Duration Selector */}
-        <div className="space-y-3 bg-slate-900/70 border border-slate-800 rounded-2xl p-5">
-          <p className="text-xs font-bold text-stone-400 uppercase tracking-widest text-center">Select practice duration</p>
-          <div className="grid grid-cols-3 gap-1.5 bg-slate-800/60 p-1 rounded-xl border border-slate-700 w-full">
-            {([20, 40, 60] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => onChangeDuration(d)}
-                className={cn(
-                  "py-2.5 rounded-lg text-xs font-semibold transition-all text-center w-full",
-                  duration === d
-                    ? "bg-stone-200 text-slate-900 shadow-lg shadow-black/20"
-                    : "text-stone-400 hover:text-stone-200"
-                )}
-              >
-                {d} Seconds
-              </button>
-            ))}
+        {/* Research Notes Card */}
+        <section className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden group hover:border-indigo-500/30 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-300" />
+          <div className="space-y-1">
+            <h3 className="text-sm font-black text-[rgb(var(--text))] flex items-center gap-1.5">
+              <span>🔬</span> RSVP Speed Reading Research
+            </h3>
+            <p className="text-[11px] text-stone-400 font-medium max-w-sm sm:max-w-md">
+              Discover the peer-reviewed evidence regarding Rapid Serial Visual Presentation (RSVP), comprehension boundaries, and speed pacing transfer to normal reading.
+            </p>
           </div>
-          <p className="text-[10px] text-stone-500 italic text-center">Short practice bursts keep the pacing sharp without turning the screen into a game.</p>
-        </div>
+          <button
+            onClick={() => setShowResearch(true)}
+            className="px-4 py-2 shrink-0 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:underline dark:hover:bg-indigo-500 dark:hover:text-white transition-all cursor-pointer shadow-lg shadow-indigo-500/5"
+          >
+            Open Research Notes
+          </button>
+        </section>
 
-        {/* Tier cards */}
+        {/* Tier cards — all 6 in one uniform grid */}
         <div className="space-y-3">
           <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Choose your pace</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -305,13 +254,106 @@ function TierSelector({ onSelect, duration, onChangeDuration }: TierSelectorProp
                 </div>
                 <p className="text-xs text-stone-400 leading-relaxed">{tier.hint}</p>
                 <p className="text-[10px] text-stone-500 font-medium">
-                  {tier.texts.length} academic drill texts · {tier.chunkSize}-word {tier.chunkSize === 1 ? 'chunk' : 'chunks'}
+                  5+ unique drill texts
+                  {tier.chunkSize > 0 ? ` · ${tier.chunkSize}-word chunks` : " · full passage"}
+                  {` · ${tier.durationSec}s`}
                 </p>
               </motion.button>
             ))}
           </div>
         </div>
       </motion.div>
+
+      {/* RSVP Speed Reading Research Modal Overlay */}
+      <AnimatePresence>
+        {showResearch && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 md:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-[#fafaf9] dark:bg-[#0b101c]/95 border border-stone-200 dark:border-indigo-500/20 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative text-left"
+            >
+              {/* Top Accent Line */}
+              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
+              
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-stone-200 dark:border-white/5 bg-stone-100 dark:bg-slate-950/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🔬</span>
+                  <div>
+                    <h2 className="text-base font-black text-stone-900 dark:text-white">RSVP Speed Reading Research</h2>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase tracking-wider">Scientific Pacing & Comprehension Notes</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowResearch(false)}
+                  className="h-8 w-8 rounded-xl border border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20 bg-stone-200/50 dark:bg-white/5 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white transition-all cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto p-6 md:p-8 space-y-6 flex-1 scrollbar-thin scrollbar-thumb-indigo-500/25">
+                <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-50/60 dark:bg-indigo-500/5 space-y-2">
+                  <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                    "Metronome/RSVP drills are designed to reduce unnecessary pauses and encourage phrase-level recognition; they are a supplement to regular RC practice, not a replacement for it."
+                  </p>
+                  <a
+                    href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7846947/"
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-block text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-2"
+                  >
+                    PMC · Training to improve temporal letter processing
+                  </a>
+                </div>
+
+                <div className="space-y-6">
+                  {([
+                    { n: "1", title: "Trains pacing — not intelligence", body: "The primary benefit is reduced hesitation, fewer regressions, and consistent rhythm. It does not directly teach vocabulary, inference, or RC strategy.", source: { label: "PMC · Temporal letter processing", href: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7846947/" } },
+                    { n: "2", title: "Don't judge progress by WPM alone", body: "For CAT, reading faster only helps if you still understand the passage well—doubling your speed is useless if it causes you to miss the ideas needed to answer the questions.", source: { label: "ResearchGate · RSVP comprehension degradation", href: "https://www.researchgate.net/publication/328925418_Rapid_serial_visual_presentation_Degradation_of_inferential_reading_comprehension_as_a_function_of_speed" } },
+                    { n: "3", title: "The goal is transfer to normal reading", body: "CAT passages are normal text. Train here, then measure whether normal reading speed and RC accuracy improve. If they don't after weeks, the drill is not transferring.", source: { label: "PubMed · Modern speed-reading apps", href: "https://pubmed.ncbi.nlm.nih.gov/29461715/" } },
+                    { n: "4", title: "RSVP removes natural reading advantages", body: "Normal readers use parafoveal preview and strategic regressions — RSVP eliminates both. Reading scientists are therefore skeptical of claims that RSVP is universally superior.", source: { label: "PubMed · Modern speed-reading apps", href: "https://pubmed.ncbi.nlm.nih.gov/29461715/" } },
+                    { n: "5", title: "Feeling difficult is normal", body: "Understanding less at 300 WPM than 180 WPM is expected. Like a runner training above race pace, temporary overload is the mechanism — not a sign the drill isn't working.", source: { label: "WIRED · Speed reading won't help", href: "https://www.wired.com/2017/01/make-resolution-read-speed-reading-wont-help/" } },
+                    { n: "6", title: "Don't chase extreme speeds", body: "200–300 WPM can maintain comprehension. 400–450+ WPM tends to produce significant comprehension losses. For CAT, pursuing 400-450+ WPM has no practical evidence base.", source: { label: "ResearchGate · RSVP comprehension degradation", href: "https://www.researchgate.net/publication/328925418_Rapid_serial_visual_presentation_Degradation_of_inferential_reading_comprehension_as_a_function_of_speed" } },
+                    { n: "7", title: "Most improvement comes from reading more", body: "Eye-tracking studies show skilled readers know more vocabulary, recognise phrases faster, and need fewer fixations. Long-term gains come from difficult material, not visual tricks.", source: { label: "PMC · Eye movements and fixation in reading", href: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7157570/" } },
+                    { n: "8", title: "Bionic Reading is not scientifically proven", body: "Bolding the first half of words shows no meaningful speed or comprehension improvement in controlled studies — and sometimes produces longer reading times.", source: { label: "ScienceDirect · No, Bionic Reading does not work", href: "https://www.sciencedirect.com/science/article/pii/S0001691824001811" } },
+                    { n: "9", title: "Use the drill to learn phrase recognition", body: "Skilled readers see 'economic growth' as one unit, not two words. Chunk-based RSVP is one of the most plausible paths from word-level to phrase-level recognition.", source: { label: "PMC · Temporal letter processing", href: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7846947/" } },
+                    { n: "10", title: "Measure improvement outside the drill", body: "Track normal reading WPM, RC accuracy, and time-per-CAT-RC weekly. RSVP WPM is secondary. If real-world scores don't improve, higher RSVP speed is largely meaningless.", source: { label: "PubMed · Modern speed-reading apps", href: "https://pubmed.ncbi.nlm.nih.gov/29461715/" } },
+                  ] as const).map(({ n, title, body, source }) => (
+                    <div key={n} className="p-5 rounded-2xl border border-stone-200 dark:border-white/5 bg-white dark:bg-white/2 hover:border-indigo-500/15 transition-all flex gap-3">
+                      <span className="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400 flex items-center justify-center">{n}</span>
+                      <div className="space-y-2 min-w-0">
+                        <h4 className="text-sm font-black text-stone-900 dark:text-white leading-snug">{title}</h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{body}</p>
+                        <a href={source.href} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline transition-colors"
+                          onClick={(e) => e.stopPropagation()}>
+                          <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                          </svg>
+                          {source.label}
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end items-center px-6 py-4 border-t border-stone-200 dark:border-white/5 bg-stone-100 dark:bg-slate-950/40 gap-3">
+                <Button
+                  onClick={() => setShowResearch(false)}
+                  className="px-5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2 cursor-pointer shadow-lg shadow-indigo-500/10"
+                >
+                  Understood, Close
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -320,13 +362,13 @@ function TierSelector({ onSelect, duration, onChangeDuration }: TierSelectorProp
 
 interface ReadyScreenProps {
   tier: DrillTier;
-  drill: DrillText;
   onStart: () => void;
   onBack: () => void;
 }
 
-function ReadyScreen({ tier, drill, onStart, onBack }: ReadyScreenProps) {
+function ReadyScreen({ tier, onStart, onBack }: ReadyScreenProps) {
   const [countdown, setCountdown] = useState(3);
+  const targetWords = Math.round((tier.durationSec * tier.targetWpm) / 60);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -343,14 +385,14 @@ function ReadyScreen({ tier, drill, onStart, onBack }: ReadyScreenProps) {
   }, [onStart]);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 text-center gap-8">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 text-center gap-8 drill-ready-screen">
       {/* Countdown ring */}
       <motion.div
         key={countdown}
         initial={{ scale: 1.4, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         className={cn(
-          "w-28 h-28 rounded-full border-4 flex items-center justify-center",
+          "w-28 h-28 rounded-full border-4 flex items-center justify-center drill-metronome-ring",
           metronomeColor[tier.id]
         )}
       >
@@ -362,12 +404,12 @@ function ReadyScreen({ tier, drill, onStart, onBack }: ReadyScreenProps) {
           {tier.label} · {tier.targetWpm} WPM
         </p>
         <p className="text-stone-100 font-semibold text-base">{tier.hint}</p>
-        <p className="text-stone-500 text-xs">{drill.wordCount} words · {tier.chunkSize}-word chunks</p>
+        <p className="text-stone-500 text-xs">{targetWords} words · {tier.chunkSize > 0 ? `${tier.chunkSize}-word chunks` : 'full passage'}</p>
       </div>
 
       <button
         onClick={onBack}
-        className="text-xs text-slate-600 hover:text-slate-400 transition-colors underline underline-offset-2"
+        className="text-xs text-slate-500 hover:text-indigo-600 dark:text-stone-400 dark:hover:text-stone-200 transition-colors underline underline-offset-2"
       >
         Cancel
       </button>
@@ -392,10 +434,9 @@ interface ResultCardProps {
 
 function DrillResultCard({ tier, beatCount, wordCount, elapsedMs, recallCorrect, onNext, onChangeTier, onReplay }: ResultCardProps) {
   const actualWpm = calcActualWpm(wordCount, elapsedMs);
-  const wpmDiff = actualWpm - tier.targetWpm;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 drill-result-screen">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -422,7 +463,7 @@ function DrillResultCard({ tier, beatCount, wordCount, elapsedMs, recallCorrect,
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-3 gap-3 bg-stone-900/70 border border-stone-800 rounded-2xl p-4">
+        <div className="grid grid-cols-2 gap-3 bg-stone-900/70 border border-stone-800 rounded-2xl p-4">
           <div>
             <p className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">Beats</p>
             <p className="text-xl font-black text-white mt-1 tabular-nums">{beatCount}</p>
@@ -430,12 +471,6 @@ function DrillResultCard({ tier, beatCount, wordCount, elapsedMs, recallCorrect,
           <div>
             <p className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">Actual WPM</p>
             <p className={cn("text-xl font-black mt-1 tabular-nums", tierAccent[tier.id])}>{actualWpm}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">vs Target</p>
-            <p className={cn("text-xl font-black mt-1 tabular-nums", wpmDiff >= -10 ? "text-emerald-300" : "text-amber-300")}>
-              {wpmDiff >= 0 ? "+" : ""}{wpmDiff}
-            </p>
           </div>
         </div>
 
@@ -470,12 +505,12 @@ function DrillResultCard({ tier, beatCount, wordCount, elapsedMs, recallCorrect,
 interface DrillRunnerProps {
   tier: DrillTier;
   drill: DrillText;
-  duration: 20 | 40 | 60;
   onDone: (elapsedMs: number, beatCount: number, totalWords: number, lastDrill: DrillText) => void;
   onBack: () => void;
 }
 
-function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps) {
+function DrillRunner({ tier, drill, onDone, onBack }: DrillRunnerProps) {
+  const duration = tier.durationSec;
   const [currentDrill, setCurrentDrill] = useState<DrillText>(drill);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number>(duration);
@@ -483,11 +518,11 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
 
   const beatCountRef = useRef(0);
   const totalWordsReadRef = useRef(0);
-  const drillTextsPool = useRef(tier.texts);
-  const currentDrillIndexRef = useRef(tier.texts.findIndex((t) => t.id === drill.id));
+  const drillTextsPool = useRef([drill]);
+  const currentDrillIndexRef = useRef(0);
 
   const chunks = useMemo(() => {
-    if (tier.id === "stage3") {
+    if (tier.id === "stage6") {
       const sentences = currentDrill.text.split(/(?<=[.!?])\s+/).filter(Boolean);
       return sentences.map((s) => ({ words: s.trim().split(/\s+/).filter(Boolean) }));
     }
@@ -581,16 +616,19 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
   const progressPercent = Math.round(((duration - timeLeft) / duration) * 100);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative">
+    <div className="min-h-screen bg-slate-950 flex flex-col relative drill-runner-screen">
       {/* Top HUD */}
       <div className="fixed top-0 inset-x-0 z-40 bg-slate-950/90 backdrop-blur border-b border-white/8">
         {/* Progress bar */}
         <div className="w-full h-0.5 bg-white/5 overflow-hidden">
           <motion.div
-            className={cn("h-full", {
+              className={cn("h-full", {
               "bg-rose-500": tier.id === "stage1",
-              "bg-indigo-500": tier.id === "stage2",
-              "bg-cyan-500": tier.id === "stage3",
+              "bg-cyan-500": tier.id === "stage2",
+              "bg-indigo-500": tier.id === "stage3",
+              "bg-amber-500": tier.id === "stage4",
+              "bg-violet-500": tier.id === "stage5",
+              "bg-emerald-500": tier.id === "stage6",
             })}
             style={{ width: `${progressPercent}%` }}
             transition={{ duration: 0.1 }}
@@ -600,7 +638,7 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
         <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
           <button
             onClick={onBack}
-            className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-stone-800 bg-stone-900/80 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-700 transition-all duration-200 shadow-md text-xs font-bold"
+            className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold drill-back-button nav-action-button"
           >
             <svg
               className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
@@ -615,17 +653,18 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
           </button>
 
           <div className="flex items-center gap-2">
-            <span className={cn("text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 tabular-nums", tierBadge[tier.id])}>
+            <span className={cn("text-[10px] font-bold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 tabular-nums", tierBadge[tier.id])}>
               <span>⌛ {timeLeft}s remaining</span>
               <span>·</span>
-              <span>{tier.targetWpm} WPM</span>
+              <span className="uppercase">{tier.targetWpm} WPM</span>
             </span>
           </div>
+
 
           <button
             onClick={handlePauseResume}
             className={cn(
-              "flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold transition-all duration-300 shadow-md",
+              "flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-bold transition-all duration-300 shadow-md nav-action-button",
               isPaused
                 ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/35 hover:border-indigo-500/50 shadow-indigo-500/10 animate-pulse scale-[1.03]"
                 : "bg-slate-900/60 border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20"
@@ -652,11 +691,11 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
 
       {/* Text display */}
       <div className="flex-1 flex items-center justify-center pt-24 pb-24 px-6 sm:px-12 overflow-hidden">
-        {tier.id === "stage3" ? (
+        {tier.id === "stage6" ? (
           <div className="w-full max-w-xl bg-white text-stone-900 border border-slate-200 shadow-xl rounded-2xl p-8 text-left space-y-6 transition-all duration-300 select-text">
             <div className="text-xs uppercase font-extrabold tracking-widest text-emerald-600 border-b pb-2 border-slate-100 flex justify-between items-center">
-              <span>CAT/GMAT Exam Simulation</span>
-              <span>Speed: 300 WPM</span>
+              <span>CAT Exam Simulation</span>
+              <span>Speed: {tier.targetWpm} WPM</span>
             </div>
             <p className="font-serif text-lg leading-relaxed text-slate-800 antialiased font-normal select-text">
               {currentDrill.text}
@@ -666,63 +705,31 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
             </div>
           </div>
         ) : (
-          <div className={cn("w-full max-w-xl text-center relative py-16 px-6 sm:px-12 min-h-[220px] flex flex-col justify-center items-center rounded-3xl border transition-all duration-300 shadow-xl", {
-            "border-stone-850 bg-stone-950/60 backdrop-blur-sm": tier.id === "stage1",
-            "border-stone-300 bg-white shadow-xl": tier.id === "stage2", // Stark Black/White for Stage 2
-          })}>
-            {/* Corner Brackets for stage 1 */}
-            {tier.id === "stage1" && (
-              <>
-                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 rounded-tl-lg border-rose-500/40" />
-                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 rounded-tr-lg border-rose-500/40" />
-                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 rounded-bl-lg border-rose-500/40" />
-                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 rounded-br-lg border-rose-500/40" />
-              </>
-            )}
-
-            {/* Rhythmic Horizontal Tracking Guide */}
-            {tier.id === "stage1" && (
-              <div className="absolute inset-x-12 bottom-4 h-[2px] overflow-hidden rounded-full bg-white/5">
-                <div className="h-full w-full bg-rose-500 text-rose-500 opacity-20 shadow-[0_0_8px_currentColor]" />
-              </div>
-            )}
-
+          <div
+            className="w-full max-w-xl text-center relative flex flex-col justify-center items-center rounded-2xl border border-stone-200 bg-[#fafaf9] shadow-lg"
+            style={{ minHeight: "220px", padding: "4rem 3rem" }}
+          >
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentChunk}
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: Math.min((beatIntervalsMs[currentChunk] ?? fallbackIntervalMs) * 0.25 / 1000, 0.1), ease: "easeOut" }}
-                className={cn("font-serif text-2xl sm:text-3xl lg:text-4xl font-bold leading-relaxed tracking-wide select-none px-4", {
-                  "text-stone-100": tier.id === "stage1",
-                  "text-stone-900": tier.id === "stage2", // Stark text color for Stage 2
-                })}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: Math.min((beatIntervalsMs[currentChunk] ?? fallbackIntervalMs) * 0.25 / 1000, 0.09), ease: "easeOut" }}
+                className={cn(
+                  "select-none font-sans text-stone-900 leading-snug tracking-normal",
+                  tier.id === "stage1" ? "text-3xl sm:text-4xl font-normal" :
+                  tier.id === "stage2" ? "text-2xl sm:text-3xl font-normal" :
+                  tier.id === "stage3" ? "text-2xl sm:text-3xl font-normal" :
+                  tier.id === "stage4" ? "text-xl sm:text-2xl font-normal" :
+                  "text-lg sm:text-xl font-normal"
+                )}
               >
                 {renderScientificChunk(chunks[currentChunk]?.words ?? [], tier.id)}
               </motion.div>
             </AnimatePresence>
-
-            {/* Beat position indicator */}
-            <div className="mt-8 flex items-center justify-center gap-1.5">
-              {chunks.map((_, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "h-1 rounded-full transition-all duration-100",
-                    i < currentChunk
-                      ? "w-3 bg-stone-600"
-                      : i === currentChunk
-                      ? cn("w-6", {
-                          "bg-rose-500": tier.id === "stage1",
-                          "bg-stone-850": tier.id === "stage2",
-                        })
-                      : "w-3 bg-stone-800"
-                  )}
-                />
-              ))}
-            </div>
           </div>
+
         )}
       </div>
 
@@ -739,9 +746,6 @@ function DrillRunner({ tier, drill, duration, onDone, onBack }: DrillRunnerProps
           </div>
         </div>
       )}
-
-      {/* Visual Metronome */}
-      <MetronomeFlash tier={tier} beatCount={currentChunkIndex} intervalMs={beatIntervalsMs[currentChunkIndex] ?? fallbackIntervalMs} />
     </div>
   );
 }
@@ -796,7 +800,7 @@ function ComprehensionScreen({ tier, drill, onComplete }: ComprehensionScreenPro
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 text-center">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 text-center drill-comprehension-screen">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -816,10 +820,11 @@ function ComprehensionScreen({ tier, drill, onComplete }: ComprehensionScreenPro
                 fill="transparent"
                 stroke={
                   tier.id === "stage1" ? "#f43f5e" : // rose-500
-                  tier.id === "stage2" ? "#6366f1" : // indigo-500
-                  tier.id === "stage3" ? "#06b6d4" : // cyan-500
+                  tier.id === "stage2" ? "#06b6d4" : // cyan-500
+                  tier.id === "stage3" ? "#6366f1" : // indigo-500
                   tier.id === "stage4" ? "#f59e0b" : // amber-500
-                  "#10b981"                          // emerald-500 (stage5)
+                  tier.id === "stage5" ? "#8b5cf6" : // violet-500
+                  "#10b981"                          // emerald-500 (stage6)
                 }
                 strokeWidth="2"
                 strokeDasharray="188"
@@ -851,7 +856,7 @@ function ComprehensionScreen({ tier, drill, onComplete }: ComprehensionScreenPro
                 whileTap={hasChosen ? {} : { scale: 0.98 }}
                 onClick={() => handleSelect(optObj.originalIndex)}
                 className={cn(
-                  "w-full py-4 px-6 rounded-2xl border text-sm font-bold transition-all text-center",
+                  "w-full py-4 px-6 rounded-2xl border text-sm font-bold transition-all text-center drill-opt-button",
                   !hasChosen
                     ? "border-white/10 bg-white/4 text-slate-300 hover:border-white/20 hover:text-white"
                     : isCorrect
@@ -883,8 +888,9 @@ export default function MetronomeDrillScreen() {
 
   const [phase, setPhase] = useState<Phase>("select");
   const [selectedTier, setSelectedTier] = useState<DrillTier | null>(null);
-  const [drillIndex, setDrillIndex] = useState(0);
-  const [duration, setDuration] = useState<20 | 40 | 60>(40);
+  const [activeDrill, setActiveDrill] = useState<DrillText | null>(null);
+  const [loading, setLoading] = useState(false);
+  // duration now comes from tier.durationSec — no separate state needed
   const [resultData, setResultData] = useState<{
     elapsedMs: number;
     beatCount: number;
@@ -903,16 +909,47 @@ export default function MetronomeDrillScreen() {
     return () => setFullscreen(false);
   }, [phase, setFullscreen]);
 
-  const handleTierSelect = useCallback((tier: DrillTier) => {
-    setSelectedTier(tier);
-    setDrillIndex(0);
-    setRecallCorrect(null);
-    setPhase("ready");
+  const loadDrill = useCallback(async (tier: DrillTier) => {
+    setLoading(true);
+    try {
+      const level = Number(tier.id.replace("stage", ""));
+      const res = await apiClient.post("/drills/start", { level });
+      const drillData = res.data.data.drill;
+      const drillText: DrillText = {
+        id: drillData.id,
+        text: drillData.body,
+        wordCount: drillData.word_count,
+        question: {
+          stem: drillData.question_stem,
+          options: drillData.options,
+          correctIndex: drillData.correct_index,
+        },
+      };
+      setActiveDrill(drillText);
+      setPhase("ready");
+    } catch (err) {
+      console.error("Failed to load drill passage:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleStart = useCallback(() => {
+  const handleTierSelect = useCallback((tier: DrillTier) => {
+    setSelectedTier(tier);
+    setRecallCorrect(null);
+    void loadDrill(tier);
+  }, [loadDrill]);
+
+  const handleStart = useCallback(async () => {
     setPhase("running");
-  }, []);
+    if (activeDrill) {
+      try {
+        await apiClient.post("/drills/complete", { drill_passage_id: activeDrill.id });
+      } catch (err) {
+        console.error("Failed to mark drill as completed:", err);
+      }
+    }
+  }, [activeDrill]);
 
   const handleDrillDone = useCallback((elapsedMs: number, beatCount: number, totalWords: number, lastDrill: DrillText) => {
     setResultData({ elapsedMs, beatCount, totalWords, lastDrill });
@@ -926,18 +963,10 @@ export default function MetronomeDrillScreen() {
 
   const handleNext = useCallback(() => {
     if (!selectedTier) return;
-    const totalTexts = selectedTier.texts.length;
-    let nextIndex = drillIndex;
-    if (totalTexts > 1) {
-      do {
-        nextIndex = Math.floor(Math.random() * totalTexts);
-      } while (nextIndex === drillIndex);
-    }
-    setDrillIndex(nextIndex);
     setResultData(null);
     setRecallCorrect(null);
-    setPhase("ready");
-  }, [selectedTier, drillIndex]);
+    void loadDrill(selectedTier);
+  }, [selectedTier, loadDrill]);
 
   const handleReplay = useCallback(() => {
     setResultData(null);
@@ -947,6 +976,7 @@ export default function MetronomeDrillScreen() {
 
   const handleBack = useCallback(() => {
     setSelectedTier(null);
+    setActiveDrill(null);
     setResultData(null);
     setRecallCorrect(null);
     setPhase("select");
@@ -955,16 +985,35 @@ export default function MetronomeDrillScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (phase === "select" || !selectedTier) {
-    return <TierSelector onSelect={handleTierSelect} duration={duration} onChangeDuration={setDuration} />;
+    return <TierSelector onSelect={handleTierSelect} />;
   }
 
-  const currentDrill = selectedTier.texts[drillIndex];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center">
+        <div className="space-y-6 max-w-sm">
+          <div className="flex items-center justify-center">
+            <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-black text-white">Preparing Drill</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Fetching the drill paragraph. If you have already viewed the 5 pre-seeded drills for this level, a new unique passage is being generated via Gemini.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeDrill) return null;
+
+  const currentDrill = activeDrill;
 
   if (phase === "ready") {
     return (
       <ReadyScreen
         tier={selectedTier}
-        drill={currentDrill}
         onStart={handleStart}
         onBack={handleBack}
       />
@@ -974,10 +1023,9 @@ export default function MetronomeDrillScreen() {
   if (phase === "running") {
     return (
       <DrillRunner
-        key={`${selectedTier.id}-${drillIndex}`}
+        key={`${selectedTier.id}-${currentDrill.id}`}
         tier={selectedTier}
         drill={currentDrill}
-        duration={duration}
         onDone={handleDrillDone}
         onBack={handleBack}
       />

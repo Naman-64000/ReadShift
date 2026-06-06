@@ -17,7 +17,7 @@ import Button from "@/components/shared/Button";
 import { useUserStore } from "@/store";
 import { apiClient } from "@/lib/apiClient";
 import { DOMAINS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, msToTime } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +48,7 @@ type AdminUser = {
 
 type SeenPassage = {
   seen_at: string;
+  time_spent_ms: number;
   passage: {
     id: string;
     body: string;
@@ -83,10 +84,12 @@ const STATUS_COLORS: Record<PassageStatus | string, string> = {
 
 function qualityColor(score: number | null): string {
   if (score === null) return "text-slate-500";
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 65) return "text-amber-400";
+  if (score >= 70) return "text-emerald-400";
+  if (score >= 60) return "text-yellow-400";
+  if (score >= 50) return "text-orange-400";
   return "text-red-400";
 }
+
 
 // ── Passage Viewer Modal ───────────────────────────────────────────────────────
 
@@ -344,7 +347,7 @@ function UserSeenPanel({
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/15">
-                              ✗ Unfinished / Abandoned
+                              ✗ Unfinished / Abandoned ({msToTime(sp.time_spent_ms)})
                             </span>
                           )}
                         </div>
@@ -398,6 +401,19 @@ export default function AdminScreen() {
   // Viewer modal
   const [selectedPassage, setSelectedPassage] = useState<AdminPassage | null>(null);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPassages, setTotalPassages] = useState(0);
+  const [pageSize, setPageSize] = useState(50); // Default is 50 passages at a time
+
+  const totalPages = Math.max(1, Math.ceil(totalPassages / pageSize));
+
+  // Summary counts across database
+  const [summaryData, setSummaryData] = useState<{
+    passages_by_status: { status: string; _count: { _all: number } }[];
+    passages_by_domain: { domain: string; status: string; _count: { _all: number } }[];
+  } | null>(null);
+
   const handleHeaderSort = (field: string) => {
     if (sortBy === field) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -405,6 +421,7 @@ export default function AdminScreen() {
       setSortBy(field);
       setSortOrder("desc");
     }
+    setCurrentPage(1);
   };
 
   const isAdmin = !!user?.is_admin;
@@ -417,10 +434,11 @@ export default function AdminScreen() {
       else setLoading(true);
       setError(null);
       try {
-        const [passRes, userRes] = await Promise.all([
-          apiClient.get<{ data: { passages: AdminPassage[] } }>("/admin/passages", {
+        const [passRes, userRes, summaryRes] = await Promise.all([
+          apiClient.get<{ data: { passages: AdminPassage[]; total: number } }>("/admin/passages", {
             params: {
-              limit: 60,
+              page: currentPage,
+              limit: pageSize,
               ...(domainFilter !== "all" ? { domain: domainFilter } : {}),
               ...(statusFilter !== "all" ? { status: statusFilter } : {}),
               sortBy,
@@ -428,9 +446,15 @@ export default function AdminScreen() {
             },
           }),
           apiClient.get<{ data: AdminUser[] }>("/admin/users"),
+          apiClient.get<{ data: {
+            passages_by_status: { status: string; _count: { _all: number } }[];
+            passages_by_domain: { domain: string; status: string; _count: { _all: number } }[];
+          } }>("/admin/summary"),
         ]);
         setPassages(passRes.data.data.passages);
+        setTotalPassages(passRes.data.data.total || 0);
         setUsers(userRes.data.data);
+        setSummaryData(summaryRes.data.data);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to load admin data");
       } finally {
@@ -438,29 +462,81 @@ export default function AdminScreen() {
         setLoading(false);
       }
     },
-    [domainFilter, statusFilter, sortBy, sortOrder]
+    [domainFilter, statusFilter, sortBy, sortOrder, currentPage, pageSize]
   );
 
   useEffect(() => {
     if (isAdmin) fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, domainFilter, statusFilter, sortBy, sortOrder]);
+  }, [isAdmin, domainFilter, statusFilter, sortBy, sortOrder, currentPage, pageSize]);
 
   // ── Status counts ──────────────────────────────────────────────────────────
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { draft: 0, ready: 0, flagged: 0, retired: 0 };
-    passages.forEach((p) => { counts[p.status] = (counts[p.status] ?? 0) + 1; });
+    if (!summaryData) return counts;
+
+    if (domainFilter === "all") {
+      summaryData.passages_by_status.forEach((item) => {
+        if (item.status in counts) {
+          counts[item.status] = item._count._all;
+        }
+      });
+    } else {
+      summaryData.passages_by_domain.forEach((item) => {
+        if (item.domain === domainFilter && item.status in counts) {
+          counts[item.status] += item._count._all;
+        }
+      });
+    }
     return counts;
-  }, [passages]);
+  }, [summaryData, domainFilter]);
 
   // ── Mutations (do NOT touch the Refresh button loading state) ─────────────
+
+  const handleStatusUpdateInSummary = (oldStatus: string, newStatus: string, domain: string) => {
+    setSummaryData((prev) => {
+      if (!prev) return null;
+      
+      const newStatusByStatus = prev.passages_by_status.map((item) => {
+        if (item.status === oldStatus) {
+          return { ...item, _count: { _all: Math.max(0, item._count._all - 1) } };
+        }
+        if (item.status === newStatus) {
+          return { ...item, _count: { _all: item._count._all + 1 } };
+        }
+        return item;
+      });
+
+      const newStatusByDomain = prev.passages_by_domain.map((item) => {
+        if (item.domain === domain) {
+          if (item.status === oldStatus) {
+            return { ...item, _count: { _all: Math.max(0, item._count._all - 1) } };
+          }
+          if (item.status === newStatus) {
+            return { ...item, _count: { _all: item._count._all + 1 } };
+          }
+        }
+        return item;
+      });
+
+      return {
+        ...prev,
+        passages_by_status: newStatusByStatus,
+        passages_by_domain: newStatusByDomain,
+      };
+    });
+  };
 
   const updatePassage = async (
     id: string,
     patch: Partial<Pick<AdminPassage, "status" | "flagged" | "quality_score">>
   ) => {
     try {
+      const existing = passages.find((p) => p.id === id);
+      const oldStatus = existing?.status;
+      const domain = existing?.domain;
+
       await apiClient.patch(`/admin/passages/${id}`, patch);
       // Update local state directly — NO full fetchData() to prevent Refresh flicker
       setPassages((prev) =>
@@ -483,6 +559,11 @@ export default function AdminScreen() {
           flagged: patch.flagged ?? (patch.status === "flagged" ? true : patch.status ? false : prev.flagged),
         };
       });
+
+      // Update summary counts if status changed
+      if (patch.status && oldStatus && oldStatus !== patch.status && domain) {
+        handleStatusUpdateInSummary(oldStatus, patch.status, domain);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to update passage");
     }
@@ -506,6 +587,69 @@ export default function AdminScreen() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to reset seen passage");
     }
+  };
+
+  const startRange = totalPassages === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRange = Math.min(currentPage * pageSize, totalPassages);
+
+  const renderPagination = () => {
+    if (totalPages <= 1 && totalPassages <= pageSize) {
+      return (
+        <div className="flex items-center gap-2 bg-white/5 border border-white/8 px-3 py-1.5 rounded-xl">
+          <span className="text-slate-400 font-medium select-none text-[11px]">
+            Showing <span className="text-indigo-400 font-bold">{startRange}–{endRange}</span> of <span className="text-indigo-400 font-bold">{totalPassages}</span> passages
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-3 bg-white/5 border border-white/8 px-3 py-1.5 rounded-xl">
+        <span className="text-slate-400 font-medium select-none text-[11px] hidden sm:inline">
+          Showing <span className="text-indigo-400 font-bold">{startRange}–{endRange}</span> of <span className="text-indigo-400 font-bold">{totalPassages}</span> passages
+        </span>
+        <span className="text-slate-400 font-medium select-none text-[11px] sm:hidden">
+          {startRange}–{endRange} of {totalPassages}
+        </span>
+        <span className="text-white/20 select-none hidden sm:inline">|</span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1 || loading}
+          className="px-2.5 py-1 rounded-lg border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-all font-bold cursor-pointer text-[10px]"
+        >
+          ← Prev
+        </button>
+        <span className="font-mono text-slate-400 font-bold select-none text-[10px] whitespace-nowrap">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages || loading}
+          className="px-2.5 py-1 rounded-lg border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-all font-bold cursor-pointer text-[10px]"
+        >
+          Next →
+        </button>
+        {totalPages > 1 && (
+          <>
+            <span className="text-white/20 select-none hidden md:inline">|</span>
+            <div className="hidden md:flex items-center gap-1.5">
+              <span className="text-slate-500 text-[10px] font-bold">Jump:</span>
+              <select
+                value={currentPage}
+                onChange={(e) => setCurrentPage(Number(e.target.value))}
+                className="bg-slate-900/80 border border-white/10 rounded px-1.5 py-0.5 text-slate-300 font-bold text-[10px] cursor-pointer"
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
 
   // ── Guards ─────────────────────────────────────────────────────────────────
@@ -562,7 +706,10 @@ export default function AdminScreen() {
               <div className="flex items-center gap-2 text-xs">
                 <select
                   value={domainFilter}
-                  onChange={(e) => setDomainFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDomainFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="all">All Domains</option>
@@ -570,7 +717,10 @@ export default function AdminScreen() {
                 </select>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="all">All Statuses</option>
@@ -582,7 +732,10 @@ export default function AdminScreen() {
                 <span className="text-slate-400">|</span>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="created_at">Date Added</option>
@@ -591,26 +744,54 @@ export default function AdminScreen() {
                 </select>
                 <select
                   value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                  onChange={(e) => {
+                    setSortOrder(e.target.value as "asc" | "desc");
+                    setCurrentPage(1);
+                  }}
                   className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))]"
                 >
                   <option value="desc">Descending</option>
                   <option value="asc">Ascending</option>
                 </select>
+                <span className="text-slate-400">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 font-medium">Show:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-[rgb(var(--surface))] border border-white/10 rounded px-2 py-1 text-[rgb(var(--text))] font-bold cursor-pointer"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={75}>75</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Status count badges */}
-            <div className="flex flex-wrap gap-2 text-xs">
-              {(["ready", "draft", "flagged", "retired"] as PassageStatus[]).map((status) => (
-                <span
-                  key={status}
-                  className={cn("rounded-full px-3 py-1 font-semibold cursor-pointer transition-all", STATUS_COLORS[status])}
-                  onClick={() => setStatusFilter(statusFilter === status ? "all" : status)}
-                >
-                  {status}: {statusCounts[status] ?? 0}
-                </span>
-              ))}
+            {/* Status count badges and pagination */}
+            <div className="flex items-center justify-between flex-wrap gap-4 text-xs">
+              <div className="flex flex-wrap gap-2">
+                {(["ready", "draft", "flagged", "retired"] as PassageStatus[]).map((status) => (
+                  <span
+                    key={status}
+                    className={cn("rounded-full px-3 py-1 font-semibold cursor-pointer transition-all", STATUS_COLORS[status])}
+                    onClick={() => {
+                      setStatusFilter(statusFilter === status ? "all" : status);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    {status}: {statusCounts[status] ?? 0}
+                  </span>
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {renderPagination()}
             </div>
 
             {/* Passages table */}
@@ -724,6 +905,13 @@ export default function AdminScreen() {
                 </table>
               )}
             </div>
+
+            {/* Bottom Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-end pt-4 border-t border-white/8 text-xs">
+                {renderPagination()}
+              </div>
+            )}
             </section>
           )}
 

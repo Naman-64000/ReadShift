@@ -28,8 +28,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (get().isLoading) return;
     set({ isLoading: true, error: null });
     try {
+      const timezoneOffset = new Date().getTimezoneOffset();
       const res = await apiClient.get<{ data: { user: User; preferences: UserPreferences } }>(
-        "/users/me"
+        `/users/me?timezone_offset=${timezoneOffset}`
       );
       set({ user: res.data.data.user, preferences: res.data.data.preferences, isLoading: false });
     } catch (err: unknown) {
@@ -50,6 +51,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       set({ preferences: prev });
       const message = err instanceof Error ? err.message : "Failed to update preferences";
       set({ error: message });
+      throw err;
     }
   },
 
