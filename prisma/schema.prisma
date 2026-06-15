@@ -3,7 +3,9 @@
 // Run `npx prisma migrate dev` after any changes.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  output        = "../server/node_modules/@prisma/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
