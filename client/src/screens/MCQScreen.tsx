@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useSessionStore, useUserStore } from "@/store";
 import MCQCard from "@/components/session/MCQCard";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { cn } from "@/lib/utils";
+import { cn, getPassageFontSize } from "@/lib/utils";
 
 export default function MCQScreen() {
   const navigate = useNavigate();
@@ -187,8 +187,14 @@ export default function MCQScreen() {
                 Passage Content
               </h3>
               <div 
-                className="space-y-4 text-slate-200 leading-relaxed select-text font-serif"
-                style={{ fontSize: `${preferences?.font_size_px ?? 18}px` }}
+                className={cn(
+                  "space-y-4 text-slate-200 leading-relaxed select-text",
+                  preferences?.font_size_px === 12 ? "font-sans" : "font-serif"
+                )}
+                style={{ 
+                  fontSize: `${getPassageFontSize(preferences?.font_size_px)}px`,
+                  fontFamily: preferences?.font_size_px === 12 ? "Arial, Calibri, sans-serif" : undefined
+                }}
               >
                 {passage.passage.body.split(/\n\s*\n/).map((p, i) => (
                   <p key={i} className="indent-4 sm:indent-8">{p.trim()}</p>

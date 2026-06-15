@@ -130,7 +130,7 @@ export const aiService = {
 
         Core Skim Highlights Generation Rules (Strategic Selection Signals Blueprint):
         - Generate an array of exactly 5 elements representing the 5 strategic selection phases of a 15-second scan (Phase 1: Topic Identification, Phase 2: Difficulty Anchors, Phase 3: Argument Structure & Pivots, Phase 4: Complexity Estimate, Phase 5: Conclusion Preview).
-        - Each of the 5 elements in the 'skim_highlights' array MUST be a comma-separated list of exactly 3 to 6 key structural markers, transitions, or conceptual phrases from the passage.
+        - Each of the 5 elements in the 'skim_highlights' array MUST be a comma-separated list of exactly 2 to 3 extremely short key structural markers, transitions, or conceptual phrases from the passage. Each phrase must be very brief (exactly 1 to 2 words) to keep the total highlighted word count under 30 words (target 25-30 words in total across all 5 elements).
         - IMPORTANT: Every phrase in the comma-separated list must be a case-sensitive and character-perfect EXACT substring of the generated passage body.
         - Blueprints for the 5 phases:
           * Phase 1 (Topic Identification): Core introductory terms, primary subjects, and key theme markers from the first 1-2 lines of the passage to quickly identify the academic domain.

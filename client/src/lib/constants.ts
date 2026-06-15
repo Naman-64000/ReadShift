@@ -29,11 +29,11 @@ export const CHUNK_SIZES: { value: 2 | 3; label: string; description: string }[]
   { value: 3, label: "3 words", description: "Wider chunks — faster pacing" },
 ];
 
-export const FONT_SIZES: { value: 12 | 16 | 18 | 21; label: string }[] = [
+export const FONT_SIZES: { value: 10 | 12 | 14 | 16; label: string }[] = [
+  { value: 10, label: "10px" },
   { value: 12, label: "12px (CAT)" },
-  { value: 16, label: "Small (16px)" },
-  { value: 18, label: "Medium (18px)" },
-  { value: 21, label: "Large (21px)" },
+  { value: 14, label: "14px" },
+  { value: 16, label: "16px" },
 ];
 
 export const COL_WIDTHS: { value: ColWidth; label: string; description: string; maxWidth: string }[] = [

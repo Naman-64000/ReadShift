@@ -11,9 +11,10 @@ interface WpmSliderProps {
   onChange: (wpm: number) => void;
   recommendedWpm?: number;
   className?: string;
+  timedPassagesEnabled?: boolean;
 }
 
-export default function WpmSlider({ value, onChange, recommendedWpm, className }: WpmSliderProps) {
+export default function WpmSlider({ value, onChange, recommendedWpm, className, timedPassagesEnabled = true }: WpmSliderProps) {
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = Number(e.target.value);
@@ -30,6 +31,22 @@ export default function WpmSlider({ value, onChange, recommendedWpm, className }
     return { label: "Elite Pace",     desc: "High-performance reading" };
   };
   const { label: speedLabel, desc: speedDesc } = getSpeedLabel(value);
+
+  if (!timedPassagesEnabled) {
+    return (
+      <div className={cn("space-y-3", className)}>
+        <div className="text-center">
+          <div className="text-6xl font-black text-[rgb(var(--text))] tabular-nums tracking-tight">
+            N/A
+          </div>
+          <div className="text-base font-semibold text-indigo-400 mt-1">WPM</div>
+          <div className="text-sm text-slate-400 mt-1.5">
+            Untimed Reading — Read at your own natural pace
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("space-y-5", className)}>

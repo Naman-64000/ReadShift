@@ -52,7 +52,7 @@ async function main() {
 
     const prompt = `
       You are an expert Reading Comprehension (RC) instructor.
-      Analyze the passage below and extract exactly 5 strategic selection phases of skimming highlights (3-6 key structural/conceptual phrases per phase) representing a 15-second scan:
+      Analyze the passage below and extract exactly 5 strategic selection phases of skimming highlights (exactly 2 to 3 extremely short key structural/conceptual phrases per phase, where each phrase is exactly 1 to 2 words, keeping the total word count across all 5 phases combined around 25 to 30 words and under 30 words in total) representing a 15-second scan:
       - Phase 1 (Topic Identification): Core introductory terms, primary subjects, and key theme markers from the first 1-2 lines of the passage to quickly identify the academic domain.
       - Phase 2 (Difficulty Anchors): Unconventional jargon, capitalized entities, specific theories, or complex concepts distributed throughout the passage that signal theoretical difficulty.
       - Phase 3 (Argument Structure & Pivots): Pivotal contrast words, concessions, and transitional cues (such as "however", "yet", "although", "despite", "rather than", "alternative explanation") indicating logical shifts.

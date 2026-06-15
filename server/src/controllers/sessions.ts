@@ -121,17 +121,45 @@ export async function markPassageSeen(req: Request, res: Response, next: NextFun
     const { passage_id } = req.body;
     if (!passage_id) throw new AppError("VALIDATION_ERROR", "passage_id is required", 400);
 
+    const userId = req.auth!.userId;
+
     const alreadySeen = await prisma.userPassageSeen.findUnique({
-      where: { user_id_passage_id: { user_id: req.auth!.userId, passage_id } },
+      where: { user_id_passage_id: { user_id: userId, passage_id } },
     });
     if (!alreadySeen) {
-      await prisma.userPassageSeen.create({ data: { user_id: req.auth!.userId, passage_id } });
+      await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id } });
     } else if (alreadySeen.reallowed) {
       await prisma.userPassageSeen.update({
         where: { id: alreadySeen.id },
         data: { reallowed: false, seen_at: new Date() },
       });
     }
+
+    // Ensure we create a PassageAssignment if one doesn't exist recently (e.g. last 10 minutes)
+    // to track the start/time for this passage session.
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const existingAssignment = await prisma.passageAssignment.findFirst({
+      where: {
+        user_id: userId,
+        passage_id,
+        assigned_at: { gte: tenMinutesAgo },
+      },
+    });
+
+    if (!existingAssignment) {
+      const passage = await prisma.passage.findUnique({
+        where: { id: passage_id },
+        select: { domain: true },
+      });
+      await prisma.passageAssignment.create({
+        data: {
+          user_id: userId,
+          passage_id,
+          domain_requested: passage?.domain ?? null,
+        },
+      });
+    }
+
     res.json({ success: true });
   } catch (err) { next(err); }
 }

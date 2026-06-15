@@ -95,7 +95,7 @@ export default function SettingsScreen() {
   };
 
   const handleSave = useCallback(async () => {
-    if (!draft || !preferences) return;
+    if (!draft || !preferences || !user) return;
     setSaving(true);
     setLocalError(null);
     try {
@@ -110,11 +110,12 @@ export default function SettingsScreen() {
         highlight_intensity: draft.highlight_intensity ?? "moderate",
         auto_center_scroll: draft.auto_center_scroll ?? true,
         laap_enabled: draft.laap_enabled ?? true,
-        skim_enabled: draft.skim_enabled ?? true,
+        skim_enabled: user.is_admin ? (draft.skim_enabled ?? true) : false,
         mcqs_enabled: draft.mcqs_enabled ?? true,
         progress_bar_enabled: draft.progress_bar_enabled ?? true,
         timer_enabled: draft.timer_enabled ?? true,
-        roadmaps_enabled: draft.roadmaps_enabled ?? true,
+        roadmaps_enabled: user.is_admin ? (draft.roadmaps_enabled ?? true) : false,
+        timed_passages_enabled: draft.timed_passages_enabled ?? true,
         gemini_api_key: draft.gemini_api_key,
       });
       setVerificationSuccess(null);
@@ -162,10 +163,11 @@ export default function SettingsScreen() {
     draft?.auto_center_scroll === true &&
     draft?.laap_enabled === true &&
     draft?.chunk_size === 2 &&
-    (draft?.skim_enabled ?? true) === true &&
+    (user.is_admin ? (draft?.skim_enabled ?? true) === true : draft?.skim_enabled === false) &&
     (draft?.progress_bar_enabled ?? true) === true &&
     (draft?.timer_enabled ?? true) === true &&
-    (draft?.roadmaps_enabled ?? true) === true;
+    (user.is_admin ? (draft?.roadmaps_enabled ?? true) === true : draft?.roadmaps_enabled === false) &&
+    (draft?.timed_passages_enabled ?? true) === true;
 
   const isTestModeActive =
     draft?.guide_enabled === false &&
@@ -177,7 +179,8 @@ export default function SettingsScreen() {
     draft?.skim_enabled === false &&
     draft?.progress_bar_enabled === false &&
     draft?.timer_enabled === false &&
-    (draft?.roadmaps_enabled ?? true) === false;
+    (draft?.roadmaps_enabled ?? true) === false &&
+    draft?.timed_passages_enabled === false;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pt-20 px-4 py-10 pb-20">
@@ -248,10 +251,11 @@ export default function SettingsScreen() {
                   auto_center_scroll: true,
                   laap_enabled: true,
                   chunk_size: 2,
-                  skim_enabled: true,
-                  progress_bar_enabled: true,
+                  skim_enabled: user.is_admin ? true : false,
+                   progress_bar_enabled: true,
                   timer_enabled: true,
-                  roadmaps_enabled: true,
+                  roadmaps_enabled: user.is_admin ? true : false,
+                  timed_passages_enabled: true,
                 });
               }}
               className={cn(
@@ -277,7 +281,7 @@ export default function SettingsScreen() {
                 </p>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-2 border-t border-white/5">
                   {[
-                    "✓ Skimming Warmup",
+                    user.is_admin && "✓ Skimming Warmup",
                     "✓ Bold Highlighting",
                     "✓ Horizontal Line",
                     "✓ Regression Fading",
@@ -285,12 +289,14 @@ export default function SettingsScreen() {
                     "✓ Adaptive Pacing",
                     "✓ HUD Progress Bar",
                     "✓ HUD Pacing Timer",
-                    "✓ Paragraph Roadmaps"
-                  ].map((feat) => (
-                    <span key={feat} className="text-[9px] font-semibold text-emerald-400/90 flex items-center gap-1">
-                      {feat}
-                    </span>
-                  ))}
+                    user.is_admin && "✓ Paragraph Roadmaps"
+                  ]
+                    .filter((feat): feat is string => typeof feat === "string")
+                    .map((feat) => (
+                      <span key={feat} className="text-[9px] font-semibold text-emerald-400/90 flex items-center gap-1">
+                        {feat}
+                      </span>
+                    ))}
                 </div>
               </div>
             </button>
@@ -305,9 +311,10 @@ export default function SettingsScreen() {
                   laap_enabled: false,
                   chunk_size: 3,
                   skim_enabled: false,
-                  progress_bar_enabled: false,
+                   progress_bar_enabled: false,
                   timer_enabled: false,
                   roadmaps_enabled: false,
+                  timed_passages_enabled: false,
                 });
               }}
               className={cn(
@@ -506,6 +513,31 @@ export default function SettingsScreen() {
               </div>
             </div>
 
+            {/* Timed Passages toggle row */}
+            <div 
+              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+              onMouseEnter={() => allowHover && setHoveredPreview("timedPassages")}
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              {hoveredPreview === "timedPassages" && <TimedPassagesPreview />}
+              <div>
+                <p className="text-sm font-medium text-white cursor-help">Timed Pacing</p>
+                <p className="text-[10px] text-slate-500">Highlight chunks sequentially using target WPM speed. Toggle off for untimed reading.</p>
+              </div>
+              <button
+                onClick={() => updateDraft({ timed_passages_enabled: !(draft.timed_passages_enabled ?? true) })}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  (draft.timed_passages_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                )}
+              >
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  (draft.timed_passages_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
             {/* LAAP (Linguistic-Aware Adaptive Pacing) toggle row */}
             <div 
               className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
@@ -605,29 +637,31 @@ export default function SettingsScreen() {
             </div>
 
             {/* Skimming Phase */}
-            <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
-              onMouseEnter={() => allowHover && setHoveredPreview("skim")}
-              onMouseLeave={() => setHoveredPreview(null)}
-            >
-              {hoveredPreview === "skim" && <SkimPreview />}
-              <div>
-                <p className="text-sm font-medium text-white cursor-help">Skimming Phase</p>
-                <p className="text-[10px] text-slate-500">Enable 15s structural skimming before pacing starts</p>
-              </div>
-              <button
-                onClick={() => updateDraft({ skim_enabled: !(draft.skim_enabled ?? true) })}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                  (draft.skim_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
-                )}
+            {user.is_admin && (
+              <div 
+                className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
+                onMouseEnter={() => allowHover && setHoveredPreview("skim")}
+                onMouseLeave={() => setHoveredPreview(null)}
               >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  (draft.skim_enabled ?? true) ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
+                {hoveredPreview === "skim" && <SkimPreview />}
+                <div>
+                  <p className="text-sm font-medium text-white cursor-help">Skimming Phase</p>
+                  <p className="text-[10px] text-slate-500">Enable 15s structural skimming before pacing starts</p>
+                </div>
+                <button
+                  onClick={() => updateDraft({ skim_enabled: !(draft.skim_enabled ?? true) })}
+                  className={cn(
+                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                    (draft.skim_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                  )}
+                >
+                  <span className={cn(
+                    "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                    (draft.skim_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+            )}
 
             {/* HUD Progress Bar Toggle */}
             <div 
@@ -680,29 +714,31 @@ export default function SettingsScreen() {
             </div>
 
             {/* Paragraph Roadmaps Toggle */}
-            <div 
-              className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 cursor-help"
-              onMouseEnter={() => allowHover && setHoveredPreview("roadmaps")}
-              onMouseLeave={() => setHoveredPreview(null)}
-            >
-              {hoveredPreview === "roadmaps" && <RoadmapsPreview />}
-              <div>
-                <p className="text-sm font-medium text-white cursor-help">Paragraph Roadmaps</p>
-                <p className="text-[10px] text-slate-500">Show a 5-second keyword flow summary overlay when completing a paragraph</p>
-              </div>
-              <button
-                onClick={() => updateDraft({ roadmaps_enabled: !(draft.roadmaps_enabled ?? true) })}
-                className={cn(
-                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                  (draft.roadmaps_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
-                )}
+            {user.is_admin && (
+              <div 
+                className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5 cursor-help"
+                onMouseEnter={() => allowHover && setHoveredPreview("roadmaps")}
+                onMouseLeave={() => setHoveredPreview(null)}
               >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                  (draft.roadmaps_enabled ?? true) ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
+                {hoveredPreview === "roadmaps" && <RoadmapsPreview />}
+                <div>
+                  <p className="text-sm font-medium text-white cursor-help">Paragraph Roadmaps</p>
+                  <p className="text-[10px] text-slate-500">Show a 5-second keyword flow summary overlay when completing a paragraph</p>
+                </div>
+                <button
+                  onClick={() => updateDraft({ roadmaps_enabled: !(draft.roadmaps_enabled ?? true) })}
+                  className={cn(
+                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                    (draft.roadmaps_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
+                  )}
+                >
+                  <span className={cn(
+                    "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                    (draft.roadmaps_enabled ?? true) ? "translate-x-5" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+            )}
 
             {/* Comprehension Checks (MCQs) Toggle Row */}
             <div 
@@ -1573,6 +1609,26 @@ function RoadmapsPreview() {
       <p className="text-[9px] text-slate-500 text-center mt-3 leading-relaxed">
         Pauses paced highlighting silently for 5 seconds to overlay a high-retention structural map.
       </p>
+    </motion.div>
+  );
+}
+
+function TimedPassagesPreview() {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10, y: "-50%" }}
+      animate={{ opacity: 1, x: 0, y: "-50%" }}
+      className="absolute left-full top-1/2 ml-4 w-60 p-4 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
+    >
+      <div className="text-[10px] text-slate-400 mb-3 font-bold uppercase tracking-wider text-center">Timed Pacing</div>
+      <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
+        <p>
+          <strong className="text-indigo-400">Enabled:</strong> Highlights move automatically across the page according to your target WPM.
+        </p>
+        <p className="mt-2">
+          <strong className="text-slate-400">Disabled:</strong> The entire passage is visible immediately. You read at your own pace and manually click "Done".
+        </p>
+      </div>
     </motion.div>
   );
 }

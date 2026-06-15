@@ -36,25 +36,27 @@ export const sessionService = {
       });
       if (!explicitPassage) throw new AppError("NOT_FOUND", "Requested passage not found", 404);
 
-      const alreadySeen = await prisma.userPassageSeen.findUnique({
-        where: { user_id_passage_id: { user_id: userId, passage_id: explicitPassage.id } },
-      });
-      if (!alreadySeen) {
-        await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: explicitPassage.id } });
-      } else if (alreadySeen.reallowed) {
-        await prisma.userPassageSeen.update({
-          where: { id: alreadySeen.id },
-          data: { reallowed: false, seen_at: new Date() },
+      if (!prefetch) {
+        const alreadySeen = await prisma.userPassageSeen.findUnique({
+          where: { user_id_passage_id: { user_id: userId, passage_id: explicitPassage.id } },
+        });
+        if (!alreadySeen) {
+          await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: explicitPassage.id } });
+        } else if (alreadySeen.reallowed) {
+          await prisma.userPassageSeen.update({
+            where: { id: alreadySeen.id },
+            data: { reallowed: false, seen_at: new Date() },
+          });
+        }
+
+        await prisma.passageAssignment.create({
+          data: {
+            user_id: userId,
+            passage_id: explicitPassage.id,
+            domain_requested: (explicitPassage.domain as any) ?? null,
+          },
         });
       }
-
-      await prisma.passageAssignment.create({
-        data: {
-          user_id: userId,
-          passage_id: explicitPassage.id,
-          domain_requested: (explicitPassage.domain as any) ?? null,
-        },
-      });
 
       if (explicitPassage.questions) {
         const q = [...explicitPassage.questions];
@@ -328,26 +330,28 @@ export const sessionService = {
       throw new AppError("POOL_EXHAUSTED", `No passages available in any pool`, 404);
     }
 
-    // Record the view atomically (only for newly assigned, non-recycled passages)
-    const alreadySeen = await prisma.userPassageSeen.findUnique({
-      where: { user_id_passage_id: { user_id: userId, passage_id: passage.id } },
-    });
-    if (!alreadySeen) {
-      await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: passage.id } });
-    } else if (alreadySeen.reallowed) {
-      await prisma.userPassageSeen.update({
-        where: { id: alreadySeen.id },
-        data: { reallowed: false, seen_at: new Date() },
+    if (!prefetch) {
+      // Record the view atomically (only for newly assigned, non-recycled passages)
+      const alreadySeen = await prisma.userPassageSeen.findUnique({
+        where: { user_id_passage_id: { user_id: userId, passage_id: passage.id } },
+      });
+      if (!alreadySeen) {
+        await prisma.userPassageSeen.create({ data: { user_id: userId, passage_id: passage.id } });
+      } else if (alreadySeen.reallowed) {
+        await prisma.userPassageSeen.update({
+          where: { id: alreadySeen.id },
+          data: { reallowed: false, seen_at: new Date() },
+        });
+      }
+
+      await prisma.passageAssignment.create({
+        data: {
+          user_id: userId,
+          passage_id: passage.id,
+          domain_requested: (domain as any) ?? null,
+        },
       });
     }
-
-    await prisma.passageAssignment.create({
-      data: {
-        user_id: userId,
-        passage_id: passage.id,
-        domain_requested: (domain as any) ?? null,
-      },
-    });
 
     // Shuffle GMAT questions randomly using Fisher-Yates shuffle
     if (passage && passage.questions) {

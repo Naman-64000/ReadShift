@@ -214,33 +214,56 @@ export function calculateLaapIntervalsMs(
   if (chunks.length === 0 || targetWpm <= 0) return [];
 
   const paragraphStartSet = new Set(paragraphStartIndices ?? []);
+  const EMA_ALPHA = 0.35;
 
   // ── Syllable counter ──────────────────────────────────────────
   const getSyllableCount = (word: string): number => {
-    const clean = word.toLowerCase().replace(/[^a-z]/g, "");
-    if (clean.length === 0) return 0;
-    if (clean.length <= 3) return 1;
+    const trimmed = word.trim();
+    if (!trimmed) return 0;
 
-    // Count vowel groups (each group ≈ one syllable)
+    // 1. Check if it contains digits (e.g. 2026, GPT-5)
+    if (/\d/.test(trimmed)) {
+      const digitCount = (trimmed.match(/\d/g) || []).length;
+      const upperLetters = (trimmed.match(/[A-Z]/g) || []).length;
+      return Math.max(1, Math.round(digitCount * 1.5) + upperLetters);
+    }
+
+    // 2. Check if it is an all-caps abbreviation (e.g. USA, AI)
+    const isAllCaps = /^[A-Z.]{2,6}$/.test(trimmed.replace(/[^A-Za-z.]/g, ""));
+    if (isAllCaps) {
+      const lettersCount = trimmed.replace(/[^A-Z]/g, "").length;
+      if (lettersCount >= 2) {
+        return lettersCount;
+      }
+    }
+
+    // 3. Check for symbol suffixes (e.g. C++, C#)
+    let symbolSyllables = 0;
+    if (trimmed.includes("++")) symbolSyllables += 2;
+    else if (trimmed.includes("#")) symbolSyllables += 1;
+
+    // 4. Standard alphabetic syllable estimation
+    const clean = trimmed.toLowerCase().replace(/[^a-z]/g, "");
+    if (clean.length === 0) return Math.max(1, symbolSyllables);
+    if (clean.length <= 3) return Math.max(1, 1 + symbolSyllables);
+
     const vowelGroups = clean.match(/[aeiouy]+/g);
     let count = vowelGroups ? vowelGroups.length : 1;
 
-    // Deduct for a trailing silent 'e' that isn't preceded by a vowel
     if (clean.endsWith("e") && clean.length > 2) {
       const preE = clean[clean.length - 2];
       if (!"aeiouy".includes(preE)) count--;
     }
 
-    return Math.max(1, count);
+    return Math.max(1, count + symbolSyllables);
   };
 
   // ── Punctuation multiplier ────────────────────────────────────
   const getPunctuationMultiplier = (words: string[]): number => {
     if (words.length === 0) return 1.0;
     const lastWord = words[words.length - 1];
-    // Sentence-ending punctuation → natural pause
-    if (/[.?!]\s*$/.test(lastWord)) return 1.25;
-    // Clause-ending punctuation → slight pause
+    if (/[?!]\s*$/.test(lastWord)) return 1.30;
+    if (/\.\s*$/.test(lastWord)) return 1.20;
     if (/[,;:]\s*$/.test(lastWord)) return 1.10;
     return 1.0;
   };
@@ -253,54 +276,53 @@ export function calculateLaapIntervalsMs(
       if (!clean) continue;
       const charLen = clean.length;
       const syllables = getSyllableCount(clean);
-      // Base formula: complexity grows with length and syllable count
-      weight += 1.0 + 0.12 * charLen + 0.28 * syllables;
+      weight += 1.0 + 0.08 * charLen + 0.35 * syllables;
     }
     const punctMult = getPunctuationMultiplier(chunk.words);
     return Math.max(0.5, weight * punctMult);
   });
 
   // ── 2. EMA smoothing (α = 0.35) ──────────────────────────────
-  // Blend each weight with the previous smoothed value so adjacent chunks
-  // don't swing more than ~60% apart. This makes the pacing feel organic
-  // rather than jittery.
-  const alpha = 0.35;
   const smoothedWeights = [...rawWeights];
   for (let i = 1; i < smoothedWeights.length; i++) {
-    smoothedWeights[i] = alpha * rawWeights[i] + (1 - alpha) * smoothedWeights[i - 1];
+    smoothedWeights[i] = EMA_ALPHA * rawWeights[i] + (1 - EMA_ALPHA) * smoothedWeights[i - 1];
   }
-  // Reverse pass for symmetric smoothing
   for (let i = smoothedWeights.length - 2; i >= 0; i--) {
-    smoothedWeights[i] = alpha * smoothedWeights[i] + (1 - alpha) * smoothedWeights[i + 1];
+    smoothedWeights[i] = EMA_ALPHA * smoothedWeights[i] + (1 - EMA_ALPHA) * smoothedWeights[i + 1];
   }
 
-  // ── 3. Compute total WPM budget, excluding paragraph bonuses ─
+  // ── 3. Compute WPM budget and dynamic paragraph pause ─────────
   const totalWords = chunks.reduce((sum, c) => sum + c.words.length, 0);
-  const paragraphPauseMs = 400; // ms bonus per paragraph boundary (embedded into LAAP)
-  // The WPM-based budget covers content reading time; paragraph pauses are additive.
   const contentDurationMs = (totalWords / targetWpm) * 60_000;
+  const averageDuration = contentDurationMs / chunks.length;
+  
+  // Scale paragraph pause to reader speed, capped between 250ms and 700ms
+  const paragraphPauseMs = Math.max(250, Math.min(700, Math.round(1.2 * averageDuration)));
 
-  // ── 4. Scale smoothed weights to fill the content duration ───
+  // ── 4. Scale and clamp base content intervals ─────────────────
   const totalSmoothedWeight = smoothedWeights.reduce((sum, w) => sum + w, 0);
-  const intervals = smoothedWeights.map((weight, i) => {
+  
+  // Min limit: at least 80ms; Max limit: 2.2x the average duration
+  const minLimit = Math.max(80, Math.round(0.45 * averageDuration));
+  const maxLimit = Math.round(2.2 * averageDuration);
+
+  const baseIntervals = smoothedWeights.map((weight) => {
     const base = Math.round(contentDurationMs * (weight / totalSmoothedWeight));
-    // Embed paragraph pause for this chunk if it starts a new paragraph
-    const paraBonus = paragraphStartSet.has(i) ? paragraphPauseMs : 0;
-    return base + paraBonus;
+    return Math.max(minLimit, Math.min(maxLimit, base));
   });
 
   // ── 5. Rounding correction (content portion only) ─────────────
-  // Re-compute the content sum (excluding embedded para bonuses) and
-  // adjust the last content-only interval so total content ms = budget.
-  const contentSum = intervals.reduce((sum, v, i) =>
-    sum + v - (paragraphStartSet.has(i) ? paragraphPauseMs : 0), 0);
-  const drift = Math.round(contentDurationMs) - contentSum;
-  if (drift !== 0 && intervals.length > 0) {
-    intervals[intervals.length - 1] += drift;
+  const baseSum = baseIntervals.reduce((sum, v) => sum + v, 0);
+  const drift = Math.round(contentDurationMs) - baseSum;
+  if (drift !== 0 && baseIntervals.length > 0) {
+    baseIntervals[baseIntervals.length - 1] = Math.max(minLimit, baseIntervals[baseIntervals.length - 1] + drift);
   }
 
-  // ── 6. Floor: minimum 80ms per chunk so nothing is unreadable ─
-  return intervals.map((v) => Math.max(80, v));
+  // ── 6. Assemble intervals with embedded paragraph bonuses ────
+  return baseIntervals.map((base, i) => {
+    const paraBonus = paragraphStartSet.has(i) ? paragraphPauseMs : 0;
+    return base + paraBonus;
+  });
 }
 
 export interface SkimmingParagraph {
@@ -328,4 +350,17 @@ export function parseParagraphsForSkimming(body: string): SkimmingParagraph[] {
       // If no sentence-ending punctuation is found, treat the whole paragraph as the first sentence
       return { firstSentence: p, remainingText: "" };
     });
+}
+
+/**
+ * Map user settings font size selection to the actual rendered font size in pixels.
+ * Makes each size a little bigger for improved readability across all screens.
+ */
+export function getPassageFontSize(fontSizePx?: number): number {
+  if (!fontSizePx) return 18; // Default to 18px
+  if (fontSizePx === 10) return 14; // 10px -> 14px
+  if (fontSizePx === 12) return 17; // 12px (CAT) -> 17px
+  if (fontSizePx === 14) return 18; // 14px -> 18px
+  if (fontSizePx === 16) return 20; // 16px -> 20px
+  return fontSizePx + 2; // general offset
 }

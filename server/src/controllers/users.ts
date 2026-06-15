@@ -13,7 +13,7 @@ const PrefsSchema = z.object({
   fading_enabled: z.boolean().optional(),
   guide_enabled:  z.boolean().optional(),
   col_width:      z.enum(["narrow", "medium", "wide"]).optional(),
-  font_size_px:   z.union([z.literal(12), z.literal(16), z.literal(18), z.literal(21)]).optional(),
+  font_size_px:   z.union([z.literal(10), z.literal(12), z.literal(14), z.literal(16)]).optional(),
   domains:        z.array(z.enum(["business", "science", "history", "abstract", "social"])).min(1).optional(),
   mcq_timer:      z.number().int().min(0).max(180).optional(),
   highlight_intensity: z.enum(["none", "subtle", "moderate", "intense"]).optional(),
@@ -24,6 +24,7 @@ const PrefsSchema = z.object({
   progress_bar_enabled: z.boolean().optional(),
   timer_enabled:       z.boolean().optional(),
   roadmaps_enabled:    z.boolean().optional(),
+  timed_passages_enabled: z.boolean().optional(),
   gemini_api_key:      z.string().nullable().optional(),
 });
 
@@ -77,6 +78,18 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
     const user = await updateStreakActivity(req.auth!.userId, cleanOffset);
     if (!user) throw new AppError("NOT_FOUND", "User not found", 404);
 
+    // Healing logic: if non-admin user has skimming or roadmaps enabled in DB, force-disable them
+    if (!user.is_admin && user.preferences && (user.preferences.skim_enabled || user.preferences.roadmaps_enabled)) {
+      const updatedPrefs = await prisma.userPreferences.update({
+        where: { id: user.preferences.id },
+        data: {
+          skim_enabled: false,
+          roadmaps_enabled: false,
+        },
+      });
+      user.preferences = updatedPrefs;
+    }
+
     res.json({ success: true, data: { user, preferences: user.preferences } });
   } catch (err) { next(err); }
 }
@@ -117,7 +130,12 @@ export async function createUser(req: Request, res: Response, next: NextFunction
         data: {
           clerk_id: req.auth!.authProviderId,
           email: req.auth!.email,
-          preferences: { create: {} },
+          preferences: {
+            create: {
+              skim_enabled: false,
+              roadmaps_enabled: false,
+            },
+          },
           streak_days: 1,
           last_session_at: new Date(),
         },
@@ -161,6 +179,11 @@ export async function updatePreferences(req: Request, res: Response, next: NextF
     }
 
     const { gemini_api_key: parsedApiKey, ...otherData } = parsed.data;
+
+    if (!req.auth!.isAdmin) {
+      otherData.skim_enabled = false;
+      otherData.roadmaps_enabled = false;
+    }
 
     const prefs = await prisma.userPreferences.update({
       where: { user_id: req.auth!.userId },

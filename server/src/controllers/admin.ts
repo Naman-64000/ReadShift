@@ -102,7 +102,14 @@ export async function listAdminUsers(_req: Request, res: Response, next: NextFun
         is_admin: true,
         streak_days: true,
         created_at: true,
-        _count: { select: { passageViews: true, sessions: true } },
+        _count: {
+          select: {
+            passageViews: {
+              where: { reallowed: false },
+            },
+            sessions: true,
+          },
+        },
       },
       take: 200,
     });
@@ -173,7 +180,7 @@ export async function getUserSeenPassages(req: Request, res: Response, next: Nex
 
     const [seen, sessions] = await Promise.all([
       prisma.userPassageSeen.findMany({
-        where: { user_id: userId },
+        where: { user_id: userId, reallowed: false },
         orderBy: { seen_at: "desc" },
         include: {
           passage: {

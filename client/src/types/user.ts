@@ -24,7 +24,7 @@ export interface UserPreferences {
   fading_enabled: boolean;
   guide_enabled: boolean;
   col_width: ColWidth;
-  font_size_px: 12 | 16 | 18 | 21;
+  font_size_px: 10 | 12 | 14 | 16;
   domains: Domain[];
   mcq_timer: number;
   highlight_intensity: "none" | "subtle" | "moderate" | "intense";
@@ -35,6 +35,7 @@ export interface UserPreferences {
   progress_bar_enabled: boolean;
   timer_enabled: boolean;
   roadmaps_enabled?: boolean;
+  timed_passages_enabled?: boolean;
   gemini_api_key?: string | null;
 }
 

@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardStore, useSessionStore, useUserStore } from "@/store";
 import { apiClient } from "@/lib/apiClient";
-import { calculateActualWpm, cn } from "@/lib/utils";
+import { calculateActualWpm, cn, getPassageFontSize } from "@/lib/utils";
 import Button from "@/components/shared/Button";
 import { DOMAINS } from "@/lib/constants";
 
@@ -156,26 +156,26 @@ export default function CalibrationScreen() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pt-20 flex items-center justify-center px-4 py-12 relative">
-      {/* Top Left Floating Back Button */}
-      <div className="absolute top-8 left-4 sm:left-8 z-30">
-        <button
-          onClick={() => navigate("/")}
-          className="group flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-slate-900/80 backdrop-blur text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-xl"
-        >
-          <svg
-            className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          <span className="text-xs font-semibold uppercase tracking-wider">← Dashboard</span>
-        </button>
-      </div>
-
       <div className="w-full max-w-6xl mx-auto flex flex-col items-center">
+        {phase !== "reading" && (
+          <div className="self-start mb-6">
+            <button
+              onClick={() => navigate("/")}
+              className="group flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-slate-900/80 backdrop-blur text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-xl cursor-pointer"
+            >
+              <svg
+                className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="text-xs font-semibold uppercase tracking-wider">Dashboard</span>
+            </button>
+          </div>
+        )}
         <AnimatePresence mode="wait">
 
           {/* ── INTRO PHASE ── */}
@@ -281,7 +281,16 @@ export default function CalibrationScreen() {
               </div>
 
               <div className={cn("rounded-3xl border border-white/10 bg-slate-900/40 p-8 sm:p-10 shadow-2xl backdrop-blur-sm mx-auto w-full", colWidthClass[preferences?.col_width ?? "medium"])}>
-                <div className="space-y-6 text-slate-200 text-[1.125rem] leading-[2.0] font-normal tracking-[0.01em] font-serif select-text text-left">
+                <div 
+                  className={cn(
+                    "space-y-6 text-slate-200 leading-[2.0] font-normal tracking-[0.01em] select-text text-left",
+                    preferences?.font_size_px === 12 ? "font-sans" : "font-serif"
+                  )}
+                  style={{ 
+                    fontSize: `${getPassageFontSize(preferences?.font_size_px)}px`,
+                    fontFamily: preferences?.font_size_px === 12 ? "Arial, Calibri, sans-serif" : undefined
+                  }}
+                >
                   {passage.body.split(/\n\s*\n/).map((p, idx) => (
                     <p key={idx}>{p.trim()}</p>
                   ))}

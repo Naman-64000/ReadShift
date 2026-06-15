@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import Button from "@/components/shared/Button";
 import { useUIStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiClient } from "@/lib/apiClient";
 
 export default function AuthScreen() {
   const [email, setEmail] = useState("");
@@ -44,20 +43,6 @@ export default function AuthScreen() {
       addToast({ message: "Password must be at least 8 characters long.", type: "error" });
       setLoading(false);
       return;
-    }
-
-    // Unregistered check (only for Sign In mode)
-    if (!isSignUp) {
-      try {
-        const checkRes = await apiClient.get(`/users/exists?email=${encodeURIComponent(email)}`);
-        if (!checkRes.data?.data?.exists) {
-          addToast({ message: "This email address is not registered.", type: "error" });
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        // Fallback to normal Supabase check if local DB check has issues
-      }
     }
     
     const { error } = isSignUp 

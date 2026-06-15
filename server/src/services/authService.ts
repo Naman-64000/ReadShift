@@ -15,7 +15,7 @@ if (!SUPABASE_URL) {
 }
 
 const ISSUER = `${SUPABASE_URL}/auth/v1`;
-const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/jwks`));
+const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`));
 
 export const authService = {
   async verifyToken(token: string): Promise<AuthPayload> {
@@ -32,7 +32,8 @@ export const authService = {
       }
 
       return { sub, email, iat, exp };
-    } catch {
+    } catch (err) {
+      console.error("[AuthService] Supabase token verification failed:", err);
       throw new AppError("UNAUTHORIZED", "Invalid or expired token", 401);
     }
   },
@@ -55,7 +56,12 @@ export const authService = {
       create: {
         clerk_id: sub,
         email,
-        preferences: { create: {} },
+        preferences: {
+          create: {
+            skim_enabled: false,
+            roadmaps_enabled: false,
+          },
+        },
       },
       include: { preferences: true },
     });

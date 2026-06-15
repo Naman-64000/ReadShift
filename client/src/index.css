@@ -1012,12 +1012,7 @@ body.light .skimming-paragraph span.skimming-active-highlight {
 .skimming-active-highlight {
   display: inline !important;
   position: relative;
-  background-color: rgba(99, 102, 241, 0.30) !important;
-  border: 1px solid rgba(99, 102, 241, 0.40) !important;
   color: #ffffff !important;
-  border-radius: 0.25rem;
-  padding: 0.0625rem 0.25rem;
-  box-shadow: none !important;
   transition: all 0.3s ease-in-out;
   z-index: 10;
 }
@@ -1027,10 +1022,7 @@ body.light .skimming-paragraph span.skimming-active-highlight {
 }
 
 body.light .skimming-active-highlight {
-  background-color: rgba(99, 102, 241, 0.15) !important;
-  border: 1px solid rgba(99, 102, 241, 0.25) !important;
   color: rgb(15, 23, 42) !important;
-  box-shadow: none !important;
 }
 
 /* Settings Hover Preview Boxes styling (using custom classes for bulletproof responsiveness) */

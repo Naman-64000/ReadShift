@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiClient } from "@/lib/apiClient";
-import { cn } from "@/lib/utils";
+import { cn, getPassageFontSize } from "@/lib/utils";
+import { useUserStore } from "@/store";
 
 import { useDashboard } from "@/hooks/useDashboard";
 import StatCard from "@/components/dashboard/StatCard";
@@ -47,6 +48,11 @@ export default function DashboardScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { summary, error, refresh } = useDashboard();
+  const { preferences, fetchProfile } = useUserStore();
+
+  useEffect(() => {
+    if (!preferences) fetchProfile();
+  }, [preferences, fetchProfile]);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -306,11 +312,11 @@ export default function DashboardScreen() {
                         )}>
                           {item.session!.actual_wpm} WPM
                         </span>
-                      ) : (
+                      ) : item.time_spent_ms >= 1000 ? (
                         <span className="text-xs font-mono font-bold min-w-[70px] text-right text-slate-500">
                           ⏱️ {msToTime(item.time_spent_ms)}
                         </span>
-                      )}
+                      ) : null}
 
                       {/* View Action indicator */}
                       <span className="text-xs text-indigo-400 group-hover:translate-x-0.5 transition-transform ml-1">
@@ -329,6 +335,7 @@ export default function DashboardScreen() {
         {selectedPassage && (
           <HistoryPassageModal
             passage={selectedPassage}
+            fontSizePx={preferences?.font_size_px}
             onClose={() => setSelectedPassage(null)}
             onStartSession={(passageId, domain) => {
               setSelectedPassage(null);
@@ -357,10 +364,12 @@ function HistoryPassageModal({
   passage,
   onClose,
   onStartSession,
+  fontSizePx,
 }: {
   passage: HistoryPassage;
   onClose: () => void;
   onStartSession: (passageId: string, domain: string) => void;
+  fontSizePx?: number;
 }) {
   return (
     <div
@@ -401,7 +410,16 @@ function HistoryPassageModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
-          <div className="text-slate-200 leading-[1.85] text-[1.05rem] font-serif space-y-4 select-text text-left">
+          <div 
+            className={cn(
+              "text-slate-200 leading-[1.85] space-y-4 select-text text-left",
+              fontSizePx === 12 ? "font-sans" : "font-serif"
+            )}
+            style={{ 
+              fontSize: `${getPassageFontSize(fontSizePx)}px`,
+              fontFamily: fontSizePx === 12 ? "Arial, Calibri, sans-serif" : undefined
+            }}
+          >
             {passage.body.split(/\n\s*\n/).map((para, i) => (
               <p key={i}>{para.trim()}</p>
             ))}

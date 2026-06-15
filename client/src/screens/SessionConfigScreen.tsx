@@ -157,6 +157,7 @@ export default function SessionConfigScreen() {
               setLastSelectedWpm(val);
             }}
             recommendedWpm={summary?.recommended_wpm ?? (calibratedWpm ? Math.min(500, Math.round((calibratedWpm + 20) / 10) * 10) : undefined)}
+            timedPassagesEnabled={prefs?.timed_passages_enabled ?? true}
           />
         </div>
 

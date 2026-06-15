@@ -272,23 +272,23 @@ function TierSelector({ onSelect }: TierSelectorProps) {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-[#fafaf9] dark:bg-[#0b101c]/95 border border-stone-200 dark:border-indigo-500/20 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative text-left"
+              className="bg-[#0d1527] border border-white/10 rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative text-left"
             >
               {/* Top Accent Line */}
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
               
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b border-stone-200 dark:border-white/5 bg-stone-100 dark:bg-slate-950/40">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/8 bg-white/5">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">🔬</span>
                   <div>
-                    <h2 className="text-base font-black text-stone-900 dark:text-white">RSVP Speed Reading Research</h2>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-500 font-bold uppercase tracking-wider">Scientific Pacing & Comprehension Notes</p>
+                    <h2 className="text-base font-black text-white">RSVP Speed Reading Research</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Scientific Pacing & Comprehension Notes</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowResearch(false)}
-                  className="h-8 w-8 rounded-xl border border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20 bg-stone-200/50 dark:bg-white/5 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white transition-all cursor-pointer"
+                  className="h-8 w-8 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer"
                 >
                   ✕
                 </button>
@@ -296,8 +296,8 @@ function TierSelector({ onSelect }: TierSelectorProps) {
 
               {/* Scrollable Content */}
               <div className="overflow-y-auto p-6 md:p-8 space-y-6 flex-1 scrollbar-thin scrollbar-thumb-indigo-500/25">
-                <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-50/60 dark:bg-indigo-500/5 space-y-2">
-                  <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                <div className="p-4 rounded-xl border border-indigo-500/25 bg-indigo-500/5 space-y-2">
+                  <p className="text-[11px] text-slate-300 leading-relaxed italic">
                     "Metronome/RSVP drills are designed to reduce unnecessary pauses and encourage phrase-level recognition; they are a supplement to regular RC practice, not a replacement for it."
                   </p>
                   <a
@@ -322,11 +322,11 @@ function TierSelector({ onSelect }: TierSelectorProps) {
                     { n: "9", title: "Use the drill to learn phrase recognition", body: "Skilled readers see 'economic growth' as one unit, not two words. Chunk-based RSVP is one of the most plausible paths from word-level to phrase-level recognition.", source: { label: "PMC · Temporal letter processing", href: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7846947/" } },
                     { n: "10", title: "Measure improvement outside the drill", body: "Track normal reading WPM, RC accuracy, and time-per-CAT-RC weekly. RSVP WPM is secondary. If real-world scores don't improve, higher RSVP speed is largely meaningless.", source: { label: "PubMed · Modern speed-reading apps", href: "https://pubmed.ncbi.nlm.nih.gov/29461715/" } },
                   ] as const).map(({ n, title, body, source }) => (
-                    <div key={n} className="p-5 rounded-2xl border border-stone-200 dark:border-white/5 bg-white dark:bg-white/2 hover:border-indigo-500/15 transition-all flex gap-3">
-                      <span className="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-indigo-500/10 text-xs font-black text-indigo-500 dark:text-indigo-400 flex items-center justify-center">{n}</span>
+                    <div key={n} className="p-5 rounded-2xl border border-white/5 bg-white/4 hover:border-indigo-500/15 transition-all flex gap-3">
+                      <span className="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-indigo-500/10 text-xs font-black text-indigo-400 flex items-center justify-center">{n}</span>
                       <div className="space-y-2 min-w-0">
-                        <h4 className="text-sm font-black text-stone-900 dark:text-white leading-snug">{title}</h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{body}</p>
+                        <h4 className="text-sm font-black text-white leading-snug">{title}</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">{body}</p>
                         <a href={source.href} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline transition-colors"
                           onClick={(e) => e.stopPropagation()}>
@@ -342,7 +342,7 @@ function TierSelector({ onSelect }: TierSelectorProps) {
               </div>
 
               {/* Sticky Footer */}
-              <div className="flex justify-end items-center px-6 py-4 border-t border-stone-200 dark:border-white/5 bg-stone-100 dark:bg-slate-950/40 gap-3">
+              <div className="flex justify-end items-center px-6 py-4 border-t border-white/8 bg-white/5 gap-3">
                 <Button
                   onClick={() => setShowResearch(false)}
                   className="px-5 text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2 cursor-pointer shadow-lg shadow-indigo-500/10"
