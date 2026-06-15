@@ -139,7 +139,7 @@ async function main() {
         const topic = DOMAIN_TOPICS[domain][i % DOMAIN_TOPICS[domain].length];
         const body = buildPassage(domain, level, i);
         const word_count = countWords(body);
-        const quality = evaluatePassageQuality({
+        const quality = await evaluatePassageQuality({
           body,
           word_count,
           questionCount: 3,
@@ -151,7 +151,6 @@ async function main() {
             body,
             word_count,
             domain: domain as any,
-            level,
             generated_by: "seed",
             source: "seed",
             status: quality.status,
