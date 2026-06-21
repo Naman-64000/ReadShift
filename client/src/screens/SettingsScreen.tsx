@@ -110,7 +110,6 @@ export default function SettingsScreen() {
         highlight_intensity: draft.highlight_intensity ?? "moderate",
         auto_center_scroll: draft.auto_center_scroll ?? true,
         laap_enabled: draft.laap_enabled ?? true,
-        skim_enabled: user.is_admin ? (draft.skim_enabled ?? true) : false,
         mcqs_enabled: draft.mcqs_enabled ?? true,
         progress_bar_enabled: draft.progress_bar_enabled ?? true,
         timer_enabled: draft.timer_enabled ?? true,
@@ -163,7 +162,6 @@ export default function SettingsScreen() {
     draft?.auto_center_scroll === true &&
     draft?.laap_enabled === true &&
     draft?.chunk_size === 2 &&
-    (user.is_admin ? (draft?.skim_enabled ?? true) === true : draft?.skim_enabled === false) &&
     (draft?.progress_bar_enabled ?? true) === true &&
     (draft?.timer_enabled ?? true) === true &&
     (user.is_admin ? (draft?.roadmaps_enabled ?? true) === true : draft?.roadmaps_enabled === false) &&
@@ -176,7 +174,6 @@ export default function SettingsScreen() {
     draft?.auto_center_scroll === false &&
     draft?.laap_enabled === false &&
     draft?.chunk_size === 3 &&
-    draft?.skim_enabled === false &&
     draft?.progress_bar_enabled === false &&
     draft?.timer_enabled === false &&
     (draft?.roadmaps_enabled ?? true) === false &&
@@ -251,8 +248,7 @@ export default function SettingsScreen() {
                   auto_center_scroll: true,
                   laap_enabled: true,
                   chunk_size: 2,
-                  skim_enabled: user.is_admin ? true : false,
-                   progress_bar_enabled: true,
+                  progress_bar_enabled: true,
                   timer_enabled: true,
                   roadmaps_enabled: user.is_admin ? true : false,
                   timed_passages_enabled: true,
@@ -281,7 +277,6 @@ export default function SettingsScreen() {
                 </p>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-2 border-t border-white/5">
                   {[
-                    user.is_admin && "✓ Skimming Warmup",
                     "✓ Bold Highlighting",
                     "✓ Horizontal Line",
                     "✓ Regression Fading",
@@ -310,8 +305,7 @@ export default function SettingsScreen() {
                   auto_center_scroll: false,
                   laap_enabled: false,
                   chunk_size: 3,
-                  skim_enabled: false,
-                   progress_bar_enabled: false,
+                  progress_bar_enabled: false,
                   timer_enabled: false,
                   roadmaps_enabled: false,
                   timed_passages_enabled: false,
@@ -340,7 +334,6 @@ export default function SettingsScreen() {
                 </p>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-2 border-t border-white/5">
                   {[
-                    "✗ No Skimming",
                     "✗ No Word Boldness",
                     "✗ No Pacing Guide Line",
                     "✗ No Text Fading",
@@ -636,32 +629,7 @@ export default function SettingsScreen() {
               </button>
             </div>
 
-            {/* Skimming Phase */}
-            {user.is_admin && (
-              <div 
-                className="relative flex items-center justify-between px-5 py-5 transition-colors hover:bg-white/5"
-                onMouseEnter={() => allowHover && setHoveredPreview("skim")}
-                onMouseLeave={() => setHoveredPreview(null)}
-              >
-                {hoveredPreview === "skim" && <SkimPreview />}
-                <div>
-                  <p className="text-sm font-medium text-white cursor-help">Skimming Phase</p>
-                  <p className="text-[10px] text-slate-500">Enable 15s structural skimming before pacing starts</p>
-                </div>
-                <button
-                  onClick={() => updateDraft({ skim_enabled: !(draft.skim_enabled ?? true) })}
-                  className={cn(
-                    "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-                    (draft.skim_enabled ?? true) ? "bg-indigo-500" : "bg-white/10"
-                  )}
-                >
-                  <span className={cn(
-                    "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                    (draft.skim_enabled ?? true) ? "translate-x-5" : "translate-x-0"
-                  )} />
-                </button>
-              </div>
-            )}
+
 
             {/* HUD Progress Bar Toggle */}
             <div 
@@ -1064,9 +1032,7 @@ export default function SettingsScreen() {
                         <p className="text-xs text-rs-muted leading-relaxed">
                           Not all lines are equally important. Locate the single "Hero Sentence" that carries the paragraph's primary logical purpose (often the first structural claim sentence), and ignore excessive descriptive details during the first pass.
                         </p>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-[11px] text-rs-text/90 font-medium">
-                          💡 <span className="font-bold text-indigo-600 dark:text-indigo-400">ReadShift Advantage:</span> Structural Skimming (15s Warmup) dims the background and highlights only paragraph-initial sentences before pacing begins, training your eyes to instantly latch onto "Hero Sentences."
-                        </div>
+
                       </div>
                     </div>
                   </div>
@@ -1471,55 +1437,6 @@ function LaapPreview() {
   );
 }
 
-function SkimPreview() {
-  return (
-    <motion.div 
-      initial={{ opacity: 0, x: -10, y: "-50%" }}
-      animate={{ opacity: 1, x: 0, y: "-50%" }}
-      className="absolute left-full top-1/2 ml-4 w-64 p-5 rounded-xl bg-[#0f172a] border border-white/10 shadow-2xl z-50 pointer-events-none settings-preview-card"
-    >
-      <div className="text-[10px] text-slate-400 mb-3.5 font-bold uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
-        <span>👁️</span> Structural Skimming
-      </div>
-      <div className="relative space-y-3.5 py-1 text-xs">
-        {/* Paragraph 1 */}
-        <div className="space-y-1">
-          <motion.div 
-            animate={{ 
-              color: ["#cbd5e1", "#818cf8", "#cbd5e1"],
-              textShadow: ["none", "0 0 8px rgba(129,140,248,0.4)", "none"]
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="font-bold text-[11px]"
-          >
-            The fundamental premise of speed reading...
-          </motion.div>
-          <div className="h-1.5 w-11/12 bg-white/5 rounded-full" />
-          <div className="h-1.5 w-4/5 bg-white/5 rounded-full" />
-        </div>
-        
-        {/* Paragraph 2 */}
-        <div className="space-y-1">
-          <motion.div 
-            animate={{ 
-              color: ["#cbd5e1", "#818cf8", "#cbd5e1"],
-              textShadow: ["none", "0 0 8px rgba(129,140,248,0.4)", "none"]
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="font-bold text-[11px]"
-          >
-            By scanning anchor phrases before pacing...
-          </motion.div>
-          <div className="h-1.5 w-full bg-white/5 rounded-full" />
-          <div className="h-1.5 w-3/4 bg-white/5 rounded-full" />
-        </div>
-      </div>
-      <p className="text-[9px] text-slate-500 text-center mt-3.5 leading-relaxed border-t border-white/5 pt-2">
-        Cognitive priming: guides the eyes to anchor the first sentence of paragraphs, building a conceptual map.
-      </p>
-    </motion.div>
-  );
-}
 
 function HUDBarPreview() {
   return (

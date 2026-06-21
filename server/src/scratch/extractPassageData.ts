@@ -33,11 +33,6 @@ async function main() {
       markdown += `#### 1. PASSAGE BODY\n`;
       markdown += `\`\`\`text\n${p.body}\n\`\`\`\n\n`;
 
-      markdown += `#### 2. SKIMMING HIGHLIGHTS (Selection Signals)\n`;
-      p.skim_highlights.forEach((h, idx) => {
-        markdown += `- **Phase ${idx + 1}**: ${h}\n`;
-      });
-      markdown += `\n`;
 
       markdown += `#### 3. MIND MAP (Paragraph Roadmaps)\n`;
       p.paragraph_roadmaps.forEach((r, idx) => {

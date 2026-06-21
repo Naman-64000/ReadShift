@@ -161,11 +161,14 @@ export function comprehensionLabel(score: number): string {
  */
 export function formatDomain(domain: string): string {
   const labels: Record<string, string> = {
-    business: "Business",
-    science: "Science",
+    philosophy: "Philosophy",
+    psychology: "Psychology",
     history: "History",
-    abstract: "Abstract",
-    social: "Social Science",
+    arts_and_museum: "Arts and Museum",
+    society: "Society",
+    culture: "Culture",
+    biology: "Biology",
+    science_and_technology: "Science and Technology",
   };
   return labels[domain] ?? domain;
 }
@@ -323,33 +326,6 @@ export function calculateLaapIntervalsMs(
     const paraBonus = paragraphStartSet.has(i) ? paragraphPauseMs : 0;
     return base + paraBonus;
   });
-}
-
-export interface SkimmingParagraph {
-  firstSentence: string;
-  remainingText: string;
-}
-
-/**
- * Parses a passage body into paragraphs, separating the first sentence
- * from the rest of the text in each paragraph for structural skimming priming.
- */
-export function parseParagraphsForSkimming(body: string): SkimmingParagraph[] {
-  return body
-    .split(/\n\s*\n/g)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => {
-      // Find the first sentence ending index: . or ? or ! followed by space or end of string
-      const match = p.match(/(.*?[\.\?\!])(\s|$)/);
-      if (match) {
-        const firstSentence = match[1].trim();
-        const remainingText = p.slice(match[0].length).trim();
-        return { firstSentence, remainingText };
-      }
-      // If no sentence-ending punctuation is found, treat the whole paragraph as the first sentence
-      return { firstSentence: p, remainingText: "" };
-    });
 }
 
 /**

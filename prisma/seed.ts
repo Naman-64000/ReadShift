@@ -10,23 +10,23 @@ import { evaluatePassageQuality } from "../server/src/services/passageQualitySer
 
 const prisma = new PrismaClient();
 
-const DOMAINS = ["business", "science", "history", "abstract", "social"] as const;
+const DOMAINS = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"] as const;
 const LEVELS = [1, 2, 3, 4] as const;
 
 const DOMAIN_TOPICS: Record<(typeof DOMAINS)[number], string[]> = {
-  business: [
-    "pricing power in subscription markets",
-    "supply-chain concentration risk",
-    "capital allocation under uncertain demand",
-    "trade-offs between growth and margin discipline",
-    "incentive design in complex organizations",
+  philosophy: [
+    "the difference between explanation and justification",
+    "coordination problems without central authority",
+    "ambiguity as a feature of rational choice",
+    "norms versus rules in collective behavior",
+    "when simplicity obscures causal structure",
   ],
-  science: [
-    "limits of replication in behavioral studies",
-    "model uncertainty in climate forecasting",
-    "measurement bias in biomedical trials",
-    "causal inference from noisy observational data",
-    "scientific progress through imperfect proxies",
+  psychology: [
+    "cognitive biases in decision making",
+    "memory recall and emotional anchoring",
+    "social proof and crowd behavior",
+    "subconscious learning and habits",
+    "cognitive workload and focus limits",
   ],
   history: [
     "administrative reforms after imperial expansion",
@@ -35,19 +35,40 @@ const DOMAIN_TOPICS: Record<(typeof DOMAINS)[number], string[]> = {
     "economic modernization and social resistance",
     "historical memory and policy decisions",
   ],
-  abstract: [
-    "the difference between explanation and justification",
-    "coordination problems without central authority",
-    "ambiguity as a feature of rational choice",
-    "norms versus rules in collective behavior",
-    "when simplicity obscures causal structure",
+  arts_and_museum: [
+    "preservation of cultural heritage",
+    "decolonization of museum collections",
+    "aesthetic valuation across generations",
+    "the role of curation in public history",
+    "digital accessibility of fine arts",
   ],
-  social: [
+  society: [
     "attention scarcity in digital environments",
     "status signaling and group conformity",
     "trust formation in anonymous communities",
     "policy uptake and behavioral friction",
     "identity cues and decision quality",
+  ],
+  culture: [
+    "evolution of linguistic idioms",
+    "ritual practices and community cohesion",
+    "globalization vs local culinary traditions",
+    "myths as frameworks for moral codes",
+    "subcultural resistance in fashion",
+  ],
+  biology: [
+    "evolutionary adaptations in deep sea environments",
+    "microbial symbioses in soil health",
+    "epigenetic markers and environmental stressors",
+    "neuroplasticity and aging brain structures",
+    "metabolic rate scaling across species",
+  ],
+  science_and_technology: [
+    "limits of replication in behavioral studies",
+    "model uncertainty in climate forecasting",
+    "measurement bias in biomedical trials",
+    "causal inference from noisy observational data",
+    "scientific progress through imperfect proxies",
   ],
 };
 

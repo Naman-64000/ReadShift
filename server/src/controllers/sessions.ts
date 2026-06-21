@@ -9,7 +9,7 @@ import { AppError } from "../types/index.js";
 import { prisma } from "../lib/prisma.js";
 
 const StartSchema = z.object({
-  domain: z.enum(["business", "science", "history", "abstract", "social"]).optional(),
+  domain: z.enum(["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"]).optional(),
   prefetch: z.boolean().optional(),
   passage_id: z.string().uuid().optional(),
 });
@@ -19,7 +19,7 @@ const StartSessionResponseSchema = z.object({
     id: z.string().uuid(),
     body: z.string().min(50),
     word_count: z.number().int().positive(),
-    domain: z.enum(["business", "science", "history", "abstract", "social"]),
+    domain: z.enum(["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"]),
     generated_by: z.string().min(1),
     source: z.string().min(1),
     status: z.enum(["draft", "ready", "flagged", "retired"]),
@@ -29,7 +29,6 @@ const StartSessionResponseSchema = z.object({
     hash: z.string().nullable().optional(),
     flagged: z.boolean(),
     paragraph_roadmaps: z.array(z.string()).default([]),
-    skim_highlights: z.array(z.string()).default([]),
     created_at: z.date(),
   }),
   questions: z.array(
@@ -195,7 +194,7 @@ export async function getDomainStatus(req: Request, res: Response, next: NextFun
       id: { notIn: excludedIds.length ? excludedIds : ["none"] },
     };
 
-    const domains = ["business", "science", "history", "abstract", "social"];
+    const domains = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
     const statusMap: Record<string, number> = {};
 
     for (const d of domains) {

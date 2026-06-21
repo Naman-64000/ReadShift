@@ -980,51 +980,6 @@ body.light .paragraph-summary-chip {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* ── 64. Skimming View Style Adjustments ── */
-
-/* Dim out inactive skimming text to create beautiful contrast and flow */
-.skimming-paragraph {
-  color: rgba(255, 255, 255, 0.28) !important;
-}
-
-.skimming-paragraph span {
-  color: rgba(255, 255, 255, 0.28) !important;
-  transition: color 0.3s ease-in-out, background-color 0.3s ease-in-out;
-}
-
-.skimming-paragraph span.skimming-active-highlight {
-  color: #ffffff !important;
-}
-
-body.light .skimming-paragraph {
-  color: rgba(15, 23, 42, 0.35) !important;
-}
-
-body.light .skimming-paragraph span {
-  color: rgba(15, 23, 42, 0.35) !important;
-}
-
-body.light .skimming-paragraph span.skimming-active-highlight {
-  color: rgb(15, 23, 42) !important;
-}
-
-/* Active Skimming Phrase Highlights (Bold Pacing Style) - Inline flow wrapping beautifully */
-.skimming-active-highlight {
-  display: inline !important;
-  position: relative;
-  color: #ffffff !important;
-  transition: all 0.3s ease-in-out;
-  z-index: 10;
-}
-
-.skimming-active-highlight::before {
-  display: none !important; /* disable old absolute pseudo-element which caused layout/wrapping breakage */
-}
-
-body.light .skimming-active-highlight {
-  color: rgb(15, 23, 42) !important;
-}
-
 /* Settings Hover Preview Boxes styling (using custom classes for bulletproof responsiveness) */
 :root {
   --hyphen-inactive: #334155; /* slate-700 */
@@ -1086,19 +1041,6 @@ body.light .autocenter-preview-box .bg-slate-700\/40 {
   background-color: rgba(15, 23, 42, 0.25) !important;
 }
 
-/* Native CSS Color Animation for Skim Preview in Light Mode to keep text perfectly legible while animating */
-@keyframes light-mode-skim-color-animation {
-  0%, 100% {
-    color: rgba(15, 23, 42, 0.35); /* faded slate */
-  }
-  50% {
-    color: rgb(79, 70, 229); /* active indigo */
-  }
-}
-
-body.light .settings-preview-card .font-bold.text-\[11px\] {
-  animation: light-mode-skim-color-animation 3s infinite ease-in-out !important;
-}
 
 /* ── 65. Drill Screen Overrides in Light Mode ── */
 

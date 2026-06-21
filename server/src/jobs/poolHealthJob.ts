@@ -19,7 +19,7 @@ import { prisma } from "../lib/prisma.js";
 import { logger } from "../lib/logger.js";
 import { runPassageWarming } from "./passageWarmingJob.js";
 
-const DOMAINS = ["business", "science", "history", "abstract", "social"];
+const DOMAINS = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
 const MIN_THRESHOLD = Number(process.env.PASSAGE_POOL_MIN_THRESHOLD) || 50;
 
 // ── Standalone core runner ────────────────────────────────────────────────────

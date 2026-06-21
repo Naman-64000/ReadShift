@@ -38,10 +38,10 @@ async function backfill() {
   });
 
   const passages = await prisma.passage.findMany({
-    where: { domain: "business" },
+    where: { domain: "society" },
   });
 
-  console.log(`🚀 Starting roadmaps backfill for ${passages.length} business passages...`);
+  console.log(`🚀 Starting roadmaps backfill for ${passages.length} society passages...`);
 
   let countSuccess = 0;
   let countFailed = 0;

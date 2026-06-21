@@ -124,7 +124,6 @@ async function main() {
           status: quality.status === "ready" ? "ready" : "draft",
           topic_key: quality.topic_key,
           paragraph_roadmaps: passageData.paragraph_roadmaps,
-          skim_highlights: passageData.skim_highlights,
         },
       });
 

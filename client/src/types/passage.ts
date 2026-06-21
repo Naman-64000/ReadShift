@@ -31,7 +31,7 @@ export interface Passage {
   flagged: boolean;
   title: string;
   paragraph_roadmaps?: string[];
-  skim_highlights?: string[];
+  date_added?: string;
   created_at: string;
 }
 

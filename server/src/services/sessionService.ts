@@ -106,7 +106,7 @@ export const sessionService = {
       });
       const allowedDomains = userPrefs?.domains && userPrefs.domains.length > 0
         ? userPrefs.domains
-        : ["business", "science", "history", "abstract", "social"];
+        : ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
       
       // Shuffle allowed domains randomly using unbiased Fisher-Yates algorithm
       const shuffled = [...allowedDomains];
@@ -265,7 +265,7 @@ export const sessionService = {
           include: { preferences: true },
         });
 
-        const validDomains = ["business", "science", "history", "abstract", "social"];
+        const validDomains = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
         let domainToGenerate = chosenDomain;
         if (!domainToGenerate || !validDomains.includes(domainToGenerate)) {
           const allowedDomains = user?.preferences?.domains && user.preferences.domains.length > 0
@@ -301,7 +301,6 @@ export const sessionService = {
             topic_key: quality.topic_key,
             hash,
             paragraph_roadmaps: aiPassage.paragraph_roadmaps,
-            skim_highlights: aiPassage.skim_highlights,
             questions: {
               create: generatedQuestions.map((q) => ({
                 type: q.type as any,
@@ -392,7 +391,7 @@ export const sessionService = {
     // Verify client timing against server elapsed time (Issue #2)
     // The total real-world elapsed time since starting the session must be at least as long
     // as the active reading duration (allowing a 5-second buffer for clock skew or network lag).
-    // Note: The user may spend additional time on the "Ready to Begin" overlay, structural skimming,
+    // Note: The user may spend additional time on the "Ready to Begin" overlay
     // and answering the MCQs, so serverElapsedMs can be significantly larger than payload.elapsed_ms.
     const serverElapsedMs = Date.now() - new Date(payload.started_at).getTime();
     if (serverElapsedMs < payload.elapsed_ms - 5000) {

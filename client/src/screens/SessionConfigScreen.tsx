@@ -112,7 +112,7 @@ export default function SessionConfigScreen() {
 
   const prefDomains = allowedDomains.length > 0
     ? allowedDomains
-    : ["business", "science", "history", "abstract", "social"];
+    : ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
 
   const isPoolExhausted = selectedDomain === "random"
     ? prefDomains.every((d) => (domainCounts[d] ?? 0) === 0)

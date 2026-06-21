@@ -58,7 +58,6 @@ export const authService = {
         email,
         preferences: {
           create: {
-            skim_enabled: false,
             roadmaps_enabled: false,
           },
         },

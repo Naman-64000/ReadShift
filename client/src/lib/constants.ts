@@ -16,11 +16,14 @@ export const WPM_DEFAULT = 150;
 
 // ── Domains ───────────────────────────────────────────────────
 export const DOMAINS: { value: Domain; label: string; description: string; emoji: string }[] = [
-  { value: "business",  label: "Business",       description: "Economics, markets, strategy, corporate dynamics",  emoji: "📈" },
-  { value: "science",   label: "Science",         description: "Research findings, biology, physics, technology",   emoji: "🔬" },
-  { value: "history",   label: "History",         description: "Historical events, cultural shifts, social change", emoji: "🏛️" },
-  { value: "abstract",  label: "Abstract",        description: "Philosophy, logic, conceptual reasoning",           emoji: "💡" },
-  { value: "social",    label: "Social Science",  description: "Psychology, sociology, human behaviour",           emoji: "🧠" },
+  { value: "philosophy",             label: "Philosophy",             description: "Logic, ethics, epistemology, conceptual reasoning",  emoji: "💡" },
+  { value: "psychology",             label: "Psychology",             description: "Cognitive science, human behavior, mental processes", emoji: "🧠" },
+  { value: "history",                label: "History",                description: "Historical events, historical development, past eras", emoji: "🏛️" },
+  { value: "arts_and_museum",        label: "Arts and Museum",        description: "Fine arts, curation, aesthetics, preservation",      emoji: "🎨" },
+  { value: "society",                label: "Society",                description: "Social structures, institutions, collective dynamics",emoji: "👥" },
+  { value: "culture",                label: "Culture",                description: "Language, rituals, cultural shifts, subcultures",    emoji: "🎭" },
+  { value: "biology",                label: "Biology",                description: "Evolutionary biology, soil health, neural systems",  emoji: "🌿" },
+  { value: "science_and_technology", label: "Science and Tech",       description: "Research replication, forecasting, scientific models", emoji: "🔬" },
 ];
 
 // ── Reading Aids ──────────────────────────────────────────────

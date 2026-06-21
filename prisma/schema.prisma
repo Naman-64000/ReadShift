@@ -18,11 +18,14 @@ datasource db {
 // ─────────────────────────────────────────────
 
 enum Domain {
-  business
-  science
+  philosophy
+  psychology
   history
-  abstract
-  social
+  arts_and_museum
+  society
+  culture
+  biology
+  science_and_technology
 }
 
 enum ColWidth {
@@ -83,12 +86,11 @@ model UserPreferences {
   guide_enabled  Boolean  @default(true)      // pacing guide line
   col_width      ColWidth @default(medium)    // column width preference
   font_size_px   Int      @default(14)        // 10 | 12 | 14 | 16 px
-  domains        Domain[] @default([business, science, history, abstract, social])
+  domains        Domain[] @default([philosophy, psychology, history, arts_and_museum, society, culture, biology, science_and_technology])
   mcq_timer      Int      @default(0)         // 0 = no time, otherwise 15-180 seconds
   highlight_intensity String @default("intense") // subtle | moderate | intense
   auto_center_scroll Boolean  @default(true)      // auto-center active line
   laap_enabled   Boolean  @default(true)      @map("laap_enabled") // linguistic-aware adaptive pacing
-  skim_enabled   Boolean  @default(true)      @map("skim_enabled") // structural skimming before reading
   mcqs_enabled   Boolean  @default(true)      @map("mcqs_enabled") // enable/disable MCQs after reading session
   progress_bar_enabled Boolean  @default(true)      @map("progress_bar_enabled") // show/hide HUD progress bar
   timer_enabled  Boolean  @default(true)      @map("timer_enabled")        // show/hide HUD timer
@@ -123,7 +125,7 @@ model Passage {
   flagged      Boolean @default(false)       // true = excluded from pool pending review
   flag_count   Int     @default(0) @map("flag_count")
   paragraph_roadmaps String[] @default([]) @map("paragraph_roadmaps")
-  skim_highlights    String[] @default([]) @map("skim_highlights")
+  date_added   DateTime @default(now()) @db.Timestamptz(3) @map("date_added")
   created_at   DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
 
   // Relations

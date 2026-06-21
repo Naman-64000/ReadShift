@@ -26,14 +26,14 @@ const FALLBACK_PASSAGES = [
     id: "fallback-1",
     body: "The rise of distributed ledger technology has forced financial institutions to re-evaluate their transactional infrastructure. Traditional banking relies heavily on centralized clearing houses to validate transfers and prevent double-spending. This architecture, while historically secure, introduces significant settlement delays and processing fees. In contrast, blockchain networks employ decentralized consensus protocols, allowing participants to verify transactions collectively. This shift not only accelerates settlement times but also lowers transactional costs by eliminating intermediaries. However, scaling these networks remains a challenge, as consensus mechanisms require substantial computational overhead and energy expenditure to secure the ledger.",
     word_count: 97,
-    domain: "business",
+    domain: "science_and_technology",
     topic_key: "Distributed Ledger Technology",
   },
   {
     id: "fallback-2",
     body: "Neuroplasticity refers to the brain's ability to reorganize itself by forming new neural pathways throughout life. This dynamic process allows neurons to adjust their activities in response to learning, experience, or environmental changes. For decades, scientific consensus held that the adult brain was relatively fixed and incapable of significant structural alteration. However, modern neuroimaging has demonstrated that targeted training can induce measurable physical changes in brain regions associated with memory and executive function. This means that cognitive capacities are not entirely static or determined by genetics, but can be deliberately enhanced through sustained and focused practice.",
     word_count: 97,
-    domain: "science",
+    domain: "biology",
     topic_key: "Neuroplasticity",
   },
 ];
@@ -48,11 +48,14 @@ interface CalibPassage {
 }
 
 const DOMAIN_LABELS: Record<string, string> = {
-  business: "Business & Economics",
-  science: "Science & Technology",
-  history: "History & Culture",
-  abstract: "Philosophy & Abstract",
-  social: "Society & Psychology",
+  philosophy: "Philosophy",
+  psychology: "Psychology",
+  history: "History",
+  arts_and_museum: "Arts and Museum",
+  society: "Society",
+  culture: "Culture",
+  biology: "Biology",
+  science_and_technology: "Science and Technology",
 };
 
 export default function CalibrationScreen() {

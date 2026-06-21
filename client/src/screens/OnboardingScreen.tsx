@@ -20,7 +20,7 @@ export default function OnboardingScreen() {
   const navigate = useNavigate();
   const { preferences, updatePreferences } = useUserStore();
   const [step, setStep] = useState(0);
-  const [domains, setDomains] = useState<Domain[]>(preferences?.domains ?? ["business", "science"]);
+  const [domains, setDomains] = useState<Domain[]>(preferences?.domains ?? ["philosophy", "psychology"]);
   const [chunkSize, setChunkSize] = useState<2 | 3>(preferences?.chunk_size ?? 2);
   const [guide, setGuide] = useState(preferences?.guide_enabled ?? true);
   const [saving, setSaving] = useState(false);

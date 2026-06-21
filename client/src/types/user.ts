@@ -5,7 +5,15 @@
  * Mirrors the Prisma schema — used for API response typing.
  */
 
-export type Domain = "business" | "science" | "history" | "abstract" | "social";
+export type Domain =
+  | "philosophy"
+  | "psychology"
+  | "history"
+  | "arts_and_museum"
+  | "society"
+  | "culture"
+  | "biology"
+  | "science_and_technology";
 export type ColWidth = "narrow" | "medium" | "wide";
 
 export interface User {
@@ -30,7 +38,6 @@ export interface UserPreferences {
   highlight_intensity: "none" | "subtle" | "moderate" | "intense";
   auto_center_scroll: boolean;
   laap_enabled: boolean;
-  skim_enabled: boolean;
   mcqs_enabled: boolean;
   progress_bar_enabled: boolean;
   timer_enabled: boolean;

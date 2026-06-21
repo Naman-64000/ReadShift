@@ -349,11 +349,14 @@ export default function DashboardScreen() {
 }
 
 const DOMAIN_LABELS: Record<string, string> = {
-  business: "Business & Economics",
-  science: "Science & Technology",
-  history: "History & Culture",
-  abstract: "Philosophy & Abstract",
-  social: "Society & Psychology",
+  philosophy: "Philosophy",
+  psychology: "Psychology",
+  history: "History",
+  arts_and_museum: "Arts and Museum",
+  society: "Society",
+  culture: "Culture",
+  biology: "Biology",
+  science_and_technology: "Science and Technology",
 };
 
 function getDomainEmoji(domain: string) {

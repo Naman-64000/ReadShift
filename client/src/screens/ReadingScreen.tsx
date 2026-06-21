@@ -2,7 +2,7 @@
  * client/src/screens/ReadingScreen.tsx
  */
 
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiClient } from "@/lib/apiClient";
 import { supabase } from "@/lib/supabase";
@@ -22,11 +22,6 @@ const colWidthClass: Record<"narrow" | "medium" | "wide", string> = {
   wide:   "max-w-[65rem]",
 };
 
-interface SkimSegment {
-  text: string;
-  isHighlight: boolean;
-  globalIndex?: number;
-}
 
 const sendKeepAliveAbandon = (passageId: string, elapsedMs: number, neverStarted: boolean) => {
   const mockUser = localStorage.getItem("readshift_dev_user");
@@ -124,14 +119,6 @@ export default function ReadingScreen() {
     }
   };
 
-  // 🧠 15-Second Structural Skimming Module States & Lifecycle
-  const [isSkimming, setIsSkimming] = useState(false);
-  const [skimmingTimeLeft, setSkimmingTimeLeft] = useState(15);
-  const [skimmingElapsedMs, setSkimmingElapsedMs] = useState(0);
-  const skimmingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isSkimmingRef = useRef(false);
-  const isSkimmingPausedRef = useRef(false);
-
   const hasMarkedSeenRef = useRef(false);
   const markPassageSeenInDb = useCallback(async () => {
     if (hasMarkedSeenRef.current || !passage?.passage?.id) return;
@@ -142,173 +129,6 @@ export default function ReadingScreen() {
       console.error("Failed to mark passage as seen:", err);
     }
   }, [passage]);
-
-
-  const paragraphsWithSegments = useMemo(() => {
-    if (!passage?.passage?.body) return [];
-    const rawParagraphs = passage.passage.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-    const highlights = passage.passage.skim_highlights || [];
-    
-    // Extract all phrase texts and limit them to ~25-30 words in total
-    const rawPhrases = highlights
-      .flatMap((phaseRaw) => phaseRaw.split(",").map((p) => p.trim()).filter(Boolean));
-    
-    const allPhrases: string[] = [];
-    let wordCountSum = 0;
-    for (const phrase of rawPhrases) {
-      const phraseWordCount = phrase.split(/\s+/).filter(Boolean).length;
-      if (wordCountSum + phraseWordCount > 30) {
-        if (allPhrases.length === 0) {
-          allPhrases.push(phrase);
-        }
-        break; // stop adding more phrases to stay around 25-30 words in total
-      }
-      allPhrases.push(phrase);
-      wordCountSum += phraseWordCount;
-    }
-    
-    const phrasesWithTempId = allPhrases.map((phrase, idx) => ({
-      text: phrase,
-      tempId: idx,
-    }));
-
-    const matchedGlobalIndices = new Set<number>();
-    const allMatches: {
-      paraIdx: number;
-      startIdx: number;
-      text: string;
-      tempId: number;
-    }[] = [];
-
-    rawParagraphs.forEach((paraText, paraIdx) => {
-      let currentPos = 0;
-      for (const phraseObj of phrasesWithTempId) {
-        if (matchedGlobalIndices.has(phraseObj.tempId)) continue;
-        
-        const startIdx = paraText.toLowerCase().indexOf(phraseObj.text.toLowerCase(), currentPos);
-        if (startIdx !== -1) {
-          allMatches.push({
-            paraIdx,
-            startIdx,
-            text: paraText.substring(startIdx, startIdx + phraseObj.text.length),
-            tempId: phraseObj.tempId,
-          });
-          currentPos = startIdx + phraseObj.text.length;
-          matchedGlobalIndices.add(phraseObj.tempId);
-        }
-      }
-    });
-
-    // Sort matches strictly by sequential reading order (paragraph index first, then character start index)
-    allMatches.sort((a, b) => {
-      if (a.paraIdx !== b.paraIdx) {
-        return a.paraIdx - b.paraIdx;
-      }
-      return a.startIdx - b.startIdx;
-    });
-
-    // Create a mapping from tempId to sequential globalIndex
-    const tempIdToGlobalIndex = new Map<number, number>();
-    allMatches.forEach((match, idx) => {
-      tempIdToGlobalIndex.set(match.tempId, idx);
-    });
-
-    // Now reconstruct paragraphs with segments, using the sorted and reindexed matches
-    return rawParagraphs.map((paraText, paraIdx) => {
-      const paraSegments: SkimSegment[] = [];
-      const paraMatches = allMatches.filter((m) => m.paraIdx === paraIdx);
-      
-      let lastPos = 0;
-      paraMatches.forEach((match) => {
-        if (match.startIdx > lastPos) {
-          paraSegments.push({
-            text: paraText.substring(lastPos, match.startIdx),
-            isHighlight: false,
-          });
-        }
-        paraSegments.push({
-          text: match.text,
-          isHighlight: true,
-          globalIndex: tempIdToGlobalIndex.get(match.tempId)!,
-        });
-        lastPos = match.startIdx + match.text.length;
-      });
-      
-      if (lastPos < paraText.length) {
-        paraSegments.push({
-          text: paraText.substring(lastPos),
-          isHighlight: false,
-        });
-      }
-      
-      return paraSegments;
-    });
-  }, [passage]);
-
-  const totalMatchesCount = useMemo(() => {
-    let count = 0;
-    paragraphsWithSegments.forEach((para) => {
-      para.forEach((seg) => {
-        if (seg.isHighlight) count++;
-      });
-    });
-    return count;
-  }, [paragraphsWithSegments]);
-
-  const activeGlobalIndex = useMemo(() => {
-    if (totalMatchesCount === 0) return -1;
-    return Math.min(
-      totalMatchesCount - 1,
-      Math.floor(skimmingElapsedMs / (15000 / totalMatchesCount))
-    );
-  }, [totalMatchesCount, skimmingElapsedMs]);
-
-  const activeSegmentRef = useRef<HTMLSpanElement | null>(null);
-
-  // Auto-center scroll active skimming segment into view
-  useEffect(() => {
-    if (isSkimming && activeSegmentRef.current) {
-      activeSegmentRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }, [activeGlobalIndex, isSkimming]);
-
-  useEffect(() => {
-    isSkimmingRef.current = isSkimming;
-  }, [isSkimming]);
-
-  const handleStartSkimming = () => {
-    void markPassageSeenInDb();
-    setIsSkimming(true);
-    setIsReady(true);
-    setSkimmingTimeLeft(15);
-    setSkimmingElapsedMs(0);
-    isSkimmingPausedRef.current = false;
-    startActiveTracking(); // ← start wall-clock when skimming begins
-    
-    if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
-    
-    skimmingTimerRef.current = setInterval(() => {
-      if (isSkimmingPausedRef.current) return;
-
-      setSkimmingElapsedMs((prev) => {
-        const next = prev + 100;
-        if (next >= 15000) {
-          if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
-          setIsSkimming(false);
-          if (!isRunning && totalChunks > 0) start();
-          return 15000;
-        }
-        setSkimmingTimeLeft(Math.max(0, Math.ceil((15000 - next) / 1000)));
-        return next;
-      });
-    }, 100);
-  };
-
-  const handleStopSkimmingAndStart = () => {
-    if (skimmingTimerRef.current) clearInterval(skimmingTimerRef.current);
-    setIsSkimming(false);
-    if (!isRunning && totalChunks > 0) start();
-  };
 
   useEffect(() => {
     if (!preferences) {
@@ -326,53 +146,8 @@ export default function ReadingScreen() {
     // Reset active clock so a restart begins from 0
     activeAccumulatedMsRef.current = 0;
     activeStartWallRef.current = null;
-    const isAdmin = user?.is_admin ?? false;
-    const isSkimOn = isAdmin && (preferences?.skim_enabled ?? true);
-    const isTimed = preferences?.timed_passages_enabled ?? true;
-    if (isTimed && isSkimOn) {
-      handleStartSkimming();
-    } else {
-      handleBegin();
-    }
+    handleBegin();
   };
-
-  // Clean up skimming timer on unmount and handle visibility/blur
-  useEffect(() => {
-    const handlePauseSkimming = () => {
-      if (isSkimmingRef.current && !isSkimmingPausedRef.current) {
-        isSkimmingPausedRef.current = true;
-        pauseActiveTracking(); // ← pause wall-clock when window blurs during skim
-      }
-    };
-
-    const handleResumeSkimming = () => {
-      if (isSkimmingRef.current && isSkimmingPausedRef.current) {
-        isSkimmingPausedRef.current = false;
-        startActiveTracking(); // ← resume wall-clock when window focuses during skim
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handlePauseSkimming();
-      } else {
-        handleResumeSkimming();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handlePauseSkimming);
-    window.addEventListener("focus", handleResumeSkimming);
-
-    return () => {
-      if (skimmingTimerRef.current) {
-        clearInterval(skimmingTimerRef.current);
-      }
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handlePauseSkimming);
-      window.removeEventListener("focus", handleResumeSkimming);
-    };
-  }, [pauseActiveTracking, startActiveTracking]);
 
   // Redirect if no active session
   useEffect(() => {
@@ -423,13 +198,10 @@ export default function ReadingScreen() {
     elapsedMsRef.current = elapsedMs;
   }, [elapsedMs]);
 
-  // Synchronously reset all active timers (paced and skimming) on unmount to prevent background leaks
+  // Synchronously reset active timer on unmount to prevent background leaks
   useEffect(() => {
     return () => {
       reset();
-      if (skimmingTimerRef.current) {
-        clearInterval(skimmingTimerRef.current);
-      }
 
       const currentPhase = useSessionStore.getState().phase;
       const currentPassage = useSessionStore.getState().passage;
@@ -517,7 +289,7 @@ export default function ReadingScreen() {
 
   // Monitor chunk advances to trigger Paragraph Roadmap pause & overlay
   useEffect(() => {
-    if (!roadmapsEnabledForPassage || !isReady || isFinished || isSkimming || isRoadmapPaused) return;
+    if (!roadmapsEnabledForPassage || !isReady || isFinished || isRoadmapPaused) return;
     if (isPaused && !isRoadmapPaused) return;
     
     if (currentChunkIndex === lastCheckedChunkIndexRef.current) return;
@@ -535,12 +307,9 @@ export default function ReadingScreen() {
         setActiveRoadmap(roadmap);
       }
     }
-  }, [currentChunkIndex, chunks, passage, preferences, roadmapsEnabledForPassage, isReady, isFinished, isPaused, isRoadmapPaused, isSkimming, pause]);
+  }, [currentChunkIndex, chunks, passage, preferences, roadmapsEnabledForPassage, isReady, isFinished, isPaused, isRoadmapPaused, pause]);
 
   const handleBackToConfig = () => {
-    if (skimmingTimerRef.current) {
-      clearInterval(skimmingTimerRef.current);
-    }
     if (passage?.passage?.id && !hasAbandonedRef.current) {
       hasAbandonedRef.current = true;
       const neverStarted = !isReadyRef.current;
@@ -563,9 +332,6 @@ export default function ReadingScreen() {
     if (isRunning && !isPaused) {
       pause();
     }
-    if (isSkimmingRef.current) {
-      isSkimmingPausedRef.current = true;
-    }
     pauseActiveTracking(); // ← freeze clock when exit dialog appears
     setShowExitWarning(true);
   };
@@ -575,23 +341,13 @@ export default function ReadingScreen() {
     if (!wasPausedRef.current && isReady && !isFinished) {
       resume();
     }
-    if (isSkimmingRef.current) {
-      isSkimmingPausedRef.current = false;
-    }
     if (!wasPausedRef.current) {
       startActiveTracking(); // ← resume clock when user chooses to keep reading (only if it was running before)
     }
   };
 
   const handleStartSession = () => {
-    const isAdmin = user?.is_admin ?? false;
-    const isSkimOn = isAdmin && (preferences?.skim_enabled ?? true);
-    const isTimed = preferences?.timed_passages_enabled ?? true;
-    if (isTimed && isSkimOn) {
-      handleStartSkimming();
-    } else {
-      handleBegin();
-    }
+    handleBegin();
   };
 
   if (!passage || !config || !preferences) return null;
@@ -656,134 +412,8 @@ export default function ReadingScreen() {
         </>
       ) : (
         <>
-          {isSkimming ? (
-            <>
-              {/* Skimming Top Bar */}
-              <div className="fixed top-0 inset-x-0 z-[60] bg-slate-950/90 backdrop-blur border-b border-white/8 flex flex-col justify-between">
-                <div className="w-full h-1 bg-white/5 overflow-hidden">
-                  <motion.div 
-                    initial={{ width: "100%" }}
-                    animate={{ width: `${(skimmingTimeLeft / 15) * 100}%` }}
-                    transition={{ duration: 1, ease: "linear" }}
-                    className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
-                  />
-                </div>
-                <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
-                  <button
-                    onClick={handleBackToConfig}
-                    className="group flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 shadow-md text-xs font-bold nav-action-button"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                    <span>Back</span>
-                  </button>
-                  
-                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                    🧠 Cognitive Priming Skimming
-                  </span>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={toggleTheme}
-                      className="p-1.5 rounded-full border border-white/10 bg-slate-900/60 text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200 nav-action-button"
-                      aria-label="Toggle theme"
-                      title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
-                    >
-                      {theme === "light" ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                        </svg>
-                      )}
-                    </button>
-                    <span className="text-xs font-mono font-bold text-slate-300 bg-white/5 border border-white/8 px-2 py-0.5 rounded">
-                      {skimmingTimeLeft}s
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Skimming Reading area */}
-              <div className={cn("flex-1 flex flex-col items-start pt-20 pb-28 px-4 overflow-y-auto mx-auto w-full no-scrollbar", colWidthClass[preferences?.col_width ?? "medium"])}>
-                <div className="text-center w-full mb-6 space-y-1">
-                  <p className="text-xs text-slate-500 font-medium">
-                    Let your eyes jump to the highlighted key terms sequentially to build a structural roadmap of the passage.
-                  </p>
-                </div>
-                
-                <div className="w-full space-y-6 select-none">
-                  {paragraphsWithSegments.map((segments, paraIdx) => (
-                    <p 
-                      key={paraIdx} 
-                      className={cn("leading-[1.8] font-normal transition-colors duration-300 skimming-paragraph", passageFontClass)}
-                      style={{ fontSize: `${passageFontSize}px`, fontFamily: passageFontFamily }}
-                    >
-                      {segments.map((segment, segIdx) => {
-                        if (segment.isHighlight) {
-                          const isActive = segment.globalIndex === activeGlobalIndex;
-                          const intensity = preferences?.highlight_intensity ?? "moderate";
-                          const intensityClasses: Record<"none" | "subtle" | "moderate" | "intense", string> = {
-                            none: "",
-                            subtle: "bg-indigo-500/15 border-indigo-500/20 -inset-x-0.5 -inset-y-0",
-                            moderate: "bg-indigo-500/30 border-indigo-500/40 -inset-x-2 -inset-y-0.5",
-                            intense: "bg-indigo-500/60 border-indigo-500/80 -inset-x-3.5 -inset-y-1 shadow-[0_0_14px_rgba(99,102,241,0.5)]",
-                          };
-                          return (
-                            <span
-                              key={segIdx}
-                              ref={isActive ? activeSegmentRef : null}
-                              className={cn(
-                                "relative inline transition-all duration-300 rounded",
-                                isActive ? "skimming-active-highlight" : "",
-                                isActive && intensity !== "none" && `reading-chunk-${intensity}`
-                              )}
-                            >
-                              {isActive && intensity !== "none" && (
-                                <motion.span
-                                  layoutId="skimHighlight"
-                                  aria-hidden
-                                  className={cn("absolute rounded -z-10", intensityClasses[intensity])}
-                                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                />
-                              )}
-                              {segment.text}
-                            </span>
-                          );
-                        } else {
-                          return <span key={segIdx}>{segment.text}</span>;
-                        }
-                      })}
-                    </p>
-                  ))}
-                </div>
-              </div>
-
-              {/* Skimming bottom button */}
-              <div className="fixed bottom-8 inset-x-0 flex justify-center z-40">
-                <Button 
-                  size="lg" 
-                  className="shadow-2xl shadow-indigo-500/20 font-bold" 
-                  onClick={handleStopSkimmingAndStart}
-                >
-                  Start Paced Reading Now →
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Top bar */}
-              <div className="fixed top-0 inset-x-0 z-[60] bg-slate-950/90 backdrop-blur border-b border-white/8">
+          {/* Top bar */}
+          <div className="fixed top-0 inset-x-0 z-[60] bg-slate-950/90 backdrop-blur border-b border-white/8">
                 {(preferences?.progress_bar_enabled ?? true) && <ProgressBar percent={progress} />}
                 <div className="flex items-center justify-between px-3 sm:px-6 h-11 gap-2">
                   <button
@@ -958,8 +588,6 @@ export default function ReadingScreen() {
                 </div>
               )}
             </>
-          )}
-        </>
       )}
 
       {/* Finished Overlay / Choice Modal */}

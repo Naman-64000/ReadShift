@@ -30,11 +30,22 @@ export const aiService = {
     const dynamicTemperature = 0.95 + Math.random() * 0.25;
     let lastErr: any = null;
 
+    let promptDomain = domain;
+    if (domain.startsWith("arts_and_museum")) {
+      const r = Math.random();
+      const sub = r < 1/3 ? "arts" : (r < 2/3 ? "museum" : "arts and museum");
+      promptDomain = domain.replace("arts_and_museum", sub);
+    } else if (domain.startsWith("science_and_technology")) {
+      const r = Math.random();
+      const sub = r < 1/3 ? "science" : (r < 2/3 ? "technology" : "science and technology");
+      promptDomain = domain.replace("science_and_technology", sub);
+    }
+
     const prompt = `
         You are an elite professor designing extremely challenging reading comprehension passages to increase reading speed, focus, and comprehension.
 
-        Write a single, highly dense, analytical passage at expert reading comprehension level (highly challenging difficulty for speed and retention training).
-        Domain: ${domain}.
+        Write a single, highly dense, analytical passage at expert reading comprehension level (challenging difficulty for speed and retention training).
+        Domain: ${promptDomain}.
 
         Difficulty Scaling Rules (Idea-Level Reasoning Density):
         - Focus the difficulty strictly on IDEA-LEVEL REASONING DENSITY rather than sentence-level lexical/vocabulary pretentiousness.
@@ -128,24 +139,12 @@ export const aiService = {
         - The set of roadmaps should collectively allow a reader to reconstruct the passage's argumentative architecture at a glance.
         - The number of elements in the 'paragraph_roadmaps' array MUST EXACTLY match the number of paragraphs in the 'body' text.
 
-        Core Skim Highlights Generation Rules (Strategic Selection Signals Blueprint):
-        - Generate an array of exactly 5 elements representing the 5 strategic selection phases of a 15-second scan (Phase 1: Topic Identification, Phase 2: Difficulty Anchors, Phase 3: Argument Structure & Pivots, Phase 4: Complexity Estimate, Phase 5: Conclusion Preview).
-        - Each of the 5 elements in the 'skim_highlights' array MUST be a comma-separated list of exactly 2 to 3 extremely short key structural markers, transitions, or conceptual phrases from the passage. Each phrase must be very brief (exactly 1 to 2 words) to keep the total highlighted word count under 30 words (target 25-30 words in total across all 5 elements).
-        - IMPORTANT: Every phrase in the comma-separated list must be a case-sensitive and character-perfect EXACT substring of the generated passage body.
-        - Blueprints for the 5 phases:
-          * Phase 1 (Topic Identification): Core introductory terms, primary subjects, and key theme markers from the first 1-2 lines of the passage to quickly identify the academic domain.
-          * Phase 2 (Difficulty Anchors): Unconventional jargon, capitalized entities, specific theories, or complex concepts distributed throughout the passage that signal theoretical difficulty.
-          * Phase 3 (Argument Structure & Pivots): Pivotal contrast words, concessions, and transitional cues (such as "however", "yet", "although", "despite", "rather than", "alternative explanation") indicating logical shifts.
-          * Phase 4 (Complexity Estimate): Key phrases indicating methodological critiques, causal ambiguity, evidence conflicts, or analytical disputes.
-          * Phase 5 (Conclusion Preview): Concluding indicators, final author stance signals, or remaining uncertainty markers from the last paragraph of the passage.
-
-
-        Generate the passage, its title, the corresponding paragraph roadmaps, and the skim highlights, and output them in the required JSON format.
+        Generate the passage, its title, and the corresponding paragraph roadmaps, and output them in the required JSON format.
       `;
 
     for (const modelName of LITE_MODELS) {
       try {
-        const model = genAIClient.getGenerativeModel({ 
+        const model = genAIClient.getGenerativeModel({
           model: modelName,
           generationConfig: {
             temperature: dynamicTemperature,
@@ -158,26 +157,21 @@ export const aiService = {
                 paragraph_roadmaps: {
                   type: SchemaType.ARRAY,
                   items: { type: SchemaType.STRING }
-                },
-                skim_highlights: {
-                  type: SchemaType.ARRAY,
-                  items: { type: SchemaType.STRING }
                 }
               },
-              required: ["body", "title", "paragraph_roadmaps", "skim_highlights"]
+              required: ["body", "title", "paragraph_roadmaps"]
             } as any
           }
         });
 
         const result = await model.generateContent(prompt);
-        const parsed = JSON.parse(result.response.text()) as { body: string; title: string; paragraph_roadmaps: string[]; skim_highlights: string[] };
+        const parsed = JSON.parse(result.response.text()) as { body: string; title: string; paragraph_roadmaps: string[] };
         let body = parsed.body.trim();
         // If the model did not output double newlines, normalize single newlines to double newlines
         if (!body.includes("\n\n") && body.includes("\n")) {
           body = body.replace(/\n+/g, "\n\n");
         }
         const paragraph_roadmaps = parsed.paragraph_roadmaps.map(r => r.trim());
-        const skim_highlights = parsed.skim_highlights.map(h => h.trim());
         const wordCount = body.split(/\s+/).filter(Boolean).length;
 
         if (wordCount < 400 || wordCount > 620) {
@@ -189,10 +183,6 @@ export const aiService = {
           throw new Error(`Paragraph count (${paraCount}) does not match roadmaps count (${paragraph_roadmaps.length})`);
         }
 
-        if (skim_highlights.length !== 5) {
-          throw new Error(`Skim highlights count (${skim_highlights.length}) is not exactly 5`);
-        }
-
         return {
           body,
           title: parsed.title ? parsed.title.trim().replace(/['"“”]/g, "") : "Academic Reading Passage",
@@ -200,7 +190,6 @@ export const aiService = {
           domain,
           generated_by: modelName,
           paragraph_roadmaps,
-          skim_highlights,
         };
       } catch (err) {
         logger.warn({ modelName, err }, "Gemini model failed in generatePassage, trying backup...");
@@ -220,7 +209,7 @@ export const aiService = {
     const dynamicTemperature = 0.95 + Math.random() * 0.25;
     let lastErr: any = null;
 
-    const domains = ["business", "science", "history", "abstract", "social"];
+    const domains = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
     const randomDomain = domains[Math.floor(Math.random() * domains.length)];
 
     const prompt = `
@@ -246,7 +235,7 @@ export const aiService = {
 
     for (const modelName of LITE_MODELS) {
       try {
-        const model = genAIClient.getGenerativeModel({ 
+        const model = genAIClient.getGenerativeModel({
           model: modelName,
           generationConfig: {
             temperature: dynamicTemperature,
@@ -437,18 +426,18 @@ export const aiService = {
                 properties: {
                   type: { type: SchemaType.STRING, enum: ["main_idea", "inference", "vocab"] },
                   stem: { type: SchemaType.STRING },
-                  options: { 
-                     type: SchemaType.ARRAY, 
-                     items: { type: SchemaType.STRING },
-                     minItems: 4,
-                     maxItems: 4 
+                  options: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING },
+                    minItems: 4,
+                    maxItems: 4
                   },
                   correct_index: { type: SchemaType.NUMBER },
                   explanations: {
-                     type: SchemaType.ARRAY,
-                     items: { type: SchemaType.STRING },
-                     minItems: 4,
-                     maxItems: 4
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING },
+                    minItems: 4,
+                    maxItems: 4
                   }
                 },
                 required: ["type", "stem", "options", "correct_index", "explanations"],

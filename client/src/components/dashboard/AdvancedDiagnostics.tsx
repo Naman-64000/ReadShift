@@ -13,18 +13,30 @@ interface AdvancedDiagnosticsProps {
 }
 
 const DOMAIN_EMOJIS: Record<string, string> = {
-  abstract: "💡",
-  science:  "🔬",
-  business: "📈",
-  history:  "🏛️",
-  social:   "🧠",
+  philosophy:             "💡",
+  psychology:             "🧠",
+  history:                "🏛️",
+  arts_and_museum:        "🎨",
+  society:                "👥",
+  culture:                "🎭",
+  biology:                "🌿",
+  science_and_technology: "🔬",
 };
 
 export default function AdvancedDiagnostics({ summary }: AdvancedDiagnosticsProps) {
 
   const { wpm_slowdown = [], heatmap_data = [], sweet_spot } = summary;
 
-  const DOMAINS = ["abstract", "science", "business", "history", "social"];
+  const DOMAINS = [
+    "philosophy",
+    "psychology",
+    "history",
+    "arts_and_museum",
+    "society",
+    "culture",
+    "biology",
+    "science_and_technology"
+  ];
 
   // Helper: Find cell data for a domain (no level dimension anymore)
   const getCellData = (domain: string): HeatmapCell | undefined =>

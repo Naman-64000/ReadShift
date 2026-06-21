@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Starting DB update to disable skimming and roadmaps for non-admins...");
+  console.log("Starting DB update to disable roadmaps for non-admins...");
 
   const result = await prisma.userPreferences.updateMany({
     where: {
@@ -12,7 +12,6 @@ async function main() {
       },
     },
     data: {
-      skim_enabled: false,
       roadmaps_enabled: false,
     },
   });

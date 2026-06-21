@@ -108,7 +108,7 @@ export const dashboardService = {
     });
 
     // ── ADVANCED PERFORMANCE DIAGNOSTICS ──────────────────────────────────────
-    const DOMAINS = ["business", "science", "history", "abstract", "social"];
+    const DOMAINS = ["philosophy", "psychology", "history", "arts_and_museum", "society", "culture", "biology", "science_and_technology"];
 
     // 1. Overall WPM average
     const overallAvgWpm = sessions.length
@@ -202,7 +202,7 @@ export const dashboardService = {
         (c) => (c.wpm_range === "350-400 WPM" || c.wpm_range === "400+ WPM") && c.session_count > 0
       );
       if (highSpeedCorrelation && highSpeedCorrelation.avg_accuracy < 60 && sweetSpotAccuracy >= 60) {
-        description += ` Pushing your speed beyond 350 WPM currently results in a comprehension decay to ${highSpeedCorrelation.avg_accuracy}%. Focus on structural skimming to stabilize comprehension at higher WPMs.`;
+        description += ` Pushing your speed beyond 350 WPM currently results in a comprehension decay to ${highSpeedCorrelation.avg_accuracy}%. Focus on active comprehension drills to build solid retention at higher pacing speeds.`;
       } else if (sweetSpotAccuracy >= 60) {
         description += " To push this boundary further, practice Adaptive Pacing (LAAP) drills on science and abstract passages.";
       }
