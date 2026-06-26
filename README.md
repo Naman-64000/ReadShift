@@ -2,7 +2,7 @@
 
 > Train your brain to read faster without sacrificing comprehension.
 > Targeting GMAT · CAT · Competitive Exam Candidates
-> `v1.0 · May 2026`
+> `v1.0 · June 2026`
 
 ---
 
@@ -55,6 +55,7 @@ ReadShift is a web application that trains exam candidates to read faster withou
 | Recharts | 2.12 | WPM and accuracy trend charts on dashboard |
 | Axios | 1.7 | HTTP client with interceptors for auth |
 | Supabase Auth JS | 2.x | Authentication UI/session management via Supabase Auth |
+| vite-plugin-pwa | 1.3 | PWA manifest + service worker for offline caching |
 
 ### Backend (`/server`)
 
@@ -113,12 +114,20 @@ ReadShift/                          # Monorepo root
 ├── .gitignore
 │
 ├── prisma/
-│   ├── schema.prisma               # Complete DB schema (8 tables)
+│   ├── schema.prisma               # Complete DB schema (10 tables)
 │   └── seed.ts                     # Dev/staging seed data
+│
+├── e2e/                            # Playwright end-to-end tests
+│   ├── playwright.config.ts
+│   └── specs/
+│       └── timer-drift.spec.ts     # Timer accuracy regression tests
+│
+├── artifacts/
+│   └── lighthouse-reading.json     # Lighthouse audit output
 │
 ├── client/                         # React 18 + Vite frontend
 │   ├── package.json
-│   ├── vite.config.ts
+│   ├── vite.config.ts              # Vite + PWA plugin config
 │   ├── tailwind.config.js
 │   ├── tsconfig.json
 │   ├── index.html
@@ -128,6 +137,7 @@ ReadShift/                          # Monorepo root
 │       ├── index.css               # Tailwind base + design tokens
 │       │
 │       ├── screens/                # One file per screen/route
+│       │   ├── AuthScreen.tsx
 │       │   ├── OnboardingScreen.tsx
 │       │   ├── CalibrationScreen.tsx
 │       │   ├── SessionConfigScreen.tsx
@@ -135,11 +145,13 @@ ReadShift/                          # Monorepo root
 │       │   ├── MCQScreen.tsx
 │       │   ├── ResultsScreen.tsx
 │       │   ├── DashboardScreen.tsx
-│       │   └── SettingsScreen.tsx
+│       │   ├── SettingsScreen.tsx
+│       │   ├── AdminScreen.tsx          # Admin-only panel (passage/user management)
+│       │   └── MetronomeDrillScreen.tsx # Subvocalization metronome drills
 │       │
 │       ├── components/
 │       │   ├── session/            # Reading engine, WPM slider, MCQ card, result card, progress bar
-│       │   ├── dashboard/          # WPM chart, accuracy chart, stat card, streak badge, recommendation card
+│       │   ├── dashboard/          # WPM chart, accuracy chart, stat card, streak badge, recommendation card, advanced diagnostics
 │       │   ├── onboarding/         # Domain selector, reading aid toggle, step indicator
 │       │   └── shared/             # Button, Navbar, LoadingSpinner, ErrorBoundary, Toast
 │       │
@@ -148,7 +160,7 @@ ReadShift/                          # Monorepo root
 │       │   ├── userSlice.ts        # User + preferences state
 │       │   ├── sessionSlice.ts     # Active session state machine
 │       │   ├── dashboardSlice.ts   # Dashboard summary cache
-│       │   └── uiSlice.ts          # Toasts, modals, fullscreen
+│       │   └── uiSlice.ts          # Toasts, modals, fullscreen, theme
 │       │
 │       ├── hooks/                  # Custom React hooks
 │       │   ├── useReadingTimer.ts  # Drift-corrected interval timer
@@ -163,59 +175,62 @@ ReadShift/                          # Monorepo root
 │       │   └── constants.ts        # WPM levels, domains, allowed values
 │       │
 │       └── types/                  # TypeScript interfaces
-│           ├── index.ts            # Barrel export
-│           ├── user.ts             # User, UserPreferences, Domain
-│           ├── passage.ts          # Passage, Question, PassageWithQuestions
-│           ├── session.ts          # Session, SessionResult, SessionSubmitPayload
-│           ├── calibration.ts      # Calibration
-│           ├── dashboard.ts        # DashboardSummary, WpmDataPoint, DomainAccuracy
-│           └── api.ts              # ApiSuccess, ApiError, ApiResponse<T>
+│           └── index.ts            # Barrel exports
 │
 └── server/                         # Node.js + Express backend
     ├── package.json
     ├── tsconfig.json
     └── src/
         ├── index.ts                # Express app entry + worker registration
+        ├── worker.ts               # BullMQ worker startup
         │
         ├── routes/                 # Router modules (thin — delegate to controllers)
         │   ├── users.ts            # GET /me, POST /, PATCH /me/preferences, DELETE /me
-        │   ├── sessions.ts         # POST /start, POST /, GET /, GET /:id
+        │   ├── sessions.ts         # POST /start, POST /, GET /, GET /:id, GET /domain-status
         │   ├── passages.ts         # GET /, POST /:id/flag
         │   ├── calibrations.ts     # POST /, GET /, GET /latest
-        │   └── dashboard.ts        # GET /summary
+        │   ├── dashboard.ts        # GET /summary
+        │   ├── admin.ts            # Admin-only passage/user management
+        │   └── drills.ts           # POST /start, POST /complete (metronome drills)
         │
         ├── controllers/            # Request handlers (validate → call service → respond)
         │   ├── users.ts
         │   ├── sessions.ts
         │   ├── passages.ts
         │   ├── calibrations.ts
-        │   └── dashboard.ts
+        │   ├── dashboard.ts
+        │   ├── admin.ts
+        │   └── drills.ts
         │
         ├── services/               # Business logic (no Express types)
-        │   ├── sessionService.ts   # pickPassage(), createSession()
+        │   ├── sessionService.ts   # pickPassage(), createSession(), adaptive difficulty
         │   ├── passageService.ts   # getPoolDepth(), getUnseen(), flagPassage()
-        │   ├── dashboardService.ts # buildSummary()
+        │   ├── dashboardService.ts # buildSummary() with Redis caching
         │   ├── aiService.ts        # generatePassage(), generateQuestions()
         │   ├── authService.ts      # verifyToken(), getUserBySupabaseId()
+        │   └── passageQualityService.ts  # Passage quality scoring + filtering
         │
         ├── middleware/
         │   ├── auth.ts             # requireAuth — validates Supabase JWT
+        │   ├── admin.ts            # requireAdmin — is_admin flag guard
+        │   ├── timezone.ts         # Reads X-Timezone-Offset header for streak logic
         │   ├── rateLimiter.ts      # globalRateLimit, sessionRateLimit
         │   └── errorHandler.ts     # Global error → JSON envelope mapper
         │
         ├── jobs/                   # BullMQ workers
         │   ├── passageWarmingJob.ts # Generates passages via Gemini when pool is low
         │   ├── poolHealthJob.ts     # Scheduled: checks pool depth, enqueues warming jobs
-        │   └── streakResetJob.ts    # Daily: resets streaks for inactive users
+        │   └── streakResetJob.ts    # Daily: timezone-aware streak reset for inactive users
         │
-        ├── lib/
-        │   ├── prisma.ts           # PrismaClient singleton
-        │   ├── redis.ts            # ioredis singleton (BullMQ-compatible)
-        │   ├── queue.ts            # BullMQ Queue instances + queue name constants
-        │   └── logger.ts           # Pino logger (pretty in dev, JSON in prod)
+        ├── scripts/
+        │   └── benchmarkDashboard.ts  # Performance benchmark: DB vs Redis cache latency
         │
-        └── types/
-            └── index.ts            # AppError, AuthPayload, PassageGenerationJobData, pagination types
+        └── lib/
+            ├── prisma.ts           # PrismaClient singleton
+            ├── redis.ts            # ioredis singleton (BullMQ-compatible)
+            ├── queue.ts            # BullMQ Queue instances + queue name constants
+            ├── env.ts              # dotenv loader
+            └── logger.ts           # Pino logger (pretty in dev, JSON in prod)
 ```
 
 ---
@@ -238,69 +253,38 @@ You will also need accounts and API keys for:
 ## 5. Local Development Setup
 
 ### Step 1 — Clone and install dependencies
-
 ```bash
 git clone <repo-url> ReadShift
 cd ReadShift
-
-# Install all workspace dependencies (client + server + root)
 npm install
 ```
 
 ### Step 2 — Configure environment variables
-
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in **all required values** (see [Environment Variables](#6-environment-variables)).
-
 ### Step 3 — Start the database and Redis
-
 ```bash
-# Starts PostgreSQL on :5432 and Redis on :6379
 docker compose up -d
-
-# Verify both containers are healthy
-docker compose ps
 ```
 
 ### Step 4 — Run database migrations and seed
-
 ```bash
-# From the server workspace
 cd server
-
-# Generate the Prisma client
 npm run db:generate
-
-# Run all migrations (creates tables)
 npm run db:migrate
-
-# Seed with development data (optional)
 npm run db:seed
-
-cd ..
 ```
 
 ### Step 5 — Start the development servers
-
 ```bash
-# From the monorepo root — starts both client and server in parallel
 npm run dev
 ```
-
-| Service | URL |
-| :--- | :--- |
-| **Frontend** (Vite) | http://localhost:5173 |
-| **Backend** (Express) | http://localhost:3001 |
-| **Prisma Studio** | `npm run db:studio` (from `/server`) |
 
 ---
 
 ## 6. Environment Variables
-
-Copy `.env.example` → `.env` and set every value before running locally.
 
 | Variable | Required | Description |
 | :--- | :--- | :--- |
@@ -310,26 +294,25 @@ Copy `.env.example` → `.env` and set every value before running locally.
 | `PORT` | ✅ | Express server port (default `3001`) |
 | `CORS_ORIGIN` | ✅ | Allowed CORS origin for the API (Vite dev: `http://localhost:5173`) |
 | `SUPABASE_URL` | ✅ | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side JWT verification) |
 | `VITE_SUPABASE_URL` | ✅ | Same as above — exposed to the Vite client |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anon key — exposed to the Vite client |
 | `GEMINI_API_KEY` | ✅ | Google Gemini API key |
 | `VITE_API_BASE_URL` | ✅ | Backend API base URL seen by the client |
 | `LOG_LEVEL` | ✅ | `debug` \| `info` \| `warn` \| `error` |
-| `PASSAGE_POOL_MIN_THRESHOLD` | ✅ | Passages per domain-level before top-up triggers (default `50`) |
-
-> **Security:** Never commit `.env` to git. The `.gitignore` is pre-configured to exclude it.
+| `PASSAGE_POOL_MIN_THRESHOLD` | ✅ | Passages per domain before top-up triggers (default `50`) |
+| `VITE_DEV_MODE` | ⬜ | Set to `"true"` in dev to bypass Supabase email confirmation check |
 
 ---
 
 ## 7. Database Setup
 
 ### Schema overview
-
-The Prisma schema is at `prisma/schema.prisma` and defines **8 tables**:
+The Prisma schema is at `prisma/schema.prisma` and defines **10 tables**:
 
 | Table | Purpose |
 | :--- | :--- |
-| `users` | Core identity record, linked to Supabase via `supabase_id` |
+| `users` | Core identity record, stores Supabase UID |
 | `user_prefs` | Reading preferences — one row per user |
 | `passages` | Shared AI-generated content pool (250–350 words each) |
 | `questions` | 3 MCQs per passage (main_idea, inference, vocab) |
@@ -337,6 +320,9 @@ The Prisma schema is at `prisma/schema.prisma` and defines **8 tables**:
 | `responses` | One MCQ answer row per question per session |
 | `calibrations` | Baseline WPM measurements per user |
 | `user_passage_seen` | Join table preventing passage repetition per user |
+| `passage_assignments` | Tracks which passage was assigned per user + session context |
+| `drill_passages` | Short passages (65–85 words) for metronome subvocalization drills |
+| `user_drill_seen` | Join table preventing drill passage repetition per user |
 
 ### Common database commands
 
@@ -373,12 +359,7 @@ cd server && npm run dev
 ### Type checking
 
 ```bash
-# Check both client and server
 npm run type-check
-
-# Or individually
-cd client && npm run type-check
-cd server && npm run type-check
 ```
 
 ### Linting
@@ -398,54 +379,37 @@ npm run qa:e2e:staging
 npm run qa:e2e:staging:headed
 ```
 
+### Performance Benchmark
+
+```bash
+# Compare PostgreSQL vs Redis cache latency (local Docker mode)
+npm run benchmark:perf
+
+# Simulated production mode (120ms DB RTT, 1000+ rows)
+npm run benchmark:perf -- --simulate-production
+```
+
 ---
 
 ## 9. Background Jobs
 
-Three BullMQ workers run inside the server process:
-
 | Job | Queue | Schedule | Purpose |
 | :--- | :--- | :--- | :--- |
-| `passageWarmingJob` | `passage-warming` | On-demand | Calls Gemini to generate passages + MCQs when pool is low |
-| `poolHealthJob` | `pool-health` | Every 30 min | Checks passage pool depth per domain-level, enqueues warming jobs |
-| `streakResetJob` | `streak-reset` | Daily at midnight UTC | Resets streaks for users with no activity in 24h |
-
-Workers are started automatically when `server/src/index.ts` boots. They share the Redis connection from `server/src/lib/redis.ts`.
+| `passageWarmingJob` | `passage-warming` | On-demand | Calls Gemini to generate passages + MCQs |
+| `poolHealthJob` | `pool-health` | Every 30 min | Checks passage pool depth, enqueues warming jobs |
+| `streakResetJob` | `streak-reset` | Daily | Timezone-aware streak reset for inactive users |
 
 ---
 
 ## 10. Database Schema
 
-### Passage Levels → WPM Ranges
-
-| Level | WPM Range | Target User |
-| :--- | :--- | :--- |
-| 1 | 150–200 WPM | Beginner |
-| 2 | 200–280 WPM | Intermediate |
-| 3 | 280–350 WPM | Advanced |
-| 4 | 350–400+ WPM | Expert |
-
 ### Content Domains
+`philosophy` · `psychology` · `history` · `arts_and_museum` · `society` · `culture` · `biology` · `science_and_technology`
 
-`business` · `science` · `history` · `abstract` · `social`
+**Pool target:** 400 passages (50 per domain) before repetition.
 
-**Pool target:** 50 passages × 5 domains × 4 levels = **800 passages** before any user sees a repeat.
-
-### Session State Machine
-
-```
-idle → config → reading → mcq → results → idle
-```
-
-Each state maps to a screen:
-
-| State | Screen | Route |
-| :--- | :--- | :--- |
-| `idle` | — | Redirect to `/dashboard` |
-| `config` | SessionConfigScreen | `/session/config` |
-| `reading` | ReadingScreen | `/session/reading` |
-| `mcq` | MCQScreen | `/session/mcq` |
-| `results` | ResultsScreen | `/session/results` |
+### Passage Status Lifecycle
+`draft` → `ready` → `flagged` → `retired`
 
 ---
 
@@ -470,6 +434,7 @@ All API routes are prefixed with `/api`. All protected routes require a Supabase
 | `POST` | `/api/sessions` | ✅ | Submit a completed session with MCQ responses |
 | `GET` | `/api/sessions` | ✅ | List session history (paginated) |
 | `GET` | `/api/sessions/:id` | ✅ | Get a single session by ID |
+| `GET` | `/api/sessions/domain-status` | ✅ | Unseen passage counts per domain for the current user |
 
 ### Passages
 
@@ -490,7 +455,26 @@ All API routes are prefixed with `/api`. All protected routes require a Supabase
 
 | Method | Path | Auth | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/dashboard/summary` | ✅ | Full dashboard summary (WPM trend, accuracy, streak, recommendation) |
+| `GET` | `/api/dashboard/summary` | ✅ | Full dashboard summary (WPM trend, accuracy, streak, recommendation) — Redis-cached |
+
+### Admin *(requires `is_admin = true`)*
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/summary` | ✅ Admin | Platform-wide stats |
+| `GET` | `/api/admin/passages` | ✅ Admin | List all passages with status |
+| `PATCH` | `/api/admin/passages/:id` | ✅ Admin | Update passage status/quality |
+| `GET` | `/api/admin/users` | ✅ Admin | List all users |
+| `PATCH` | `/api/admin/users/:id` | ✅ Admin | Update user (e.g. grant admin) |
+| `GET` | `/api/admin/users/:id/seen-passages` | ✅ Admin | List passages seen by a specific user |
+| `DELETE` | `/api/admin/users/:id/seen-passages/:passageId` | ✅ Admin | Reset seen status for a passage |
+
+### Drills *(Metronome Subvocalization Drills)*
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/drills/start` | ✅ | Pick an unseen drill passage for the metronome drill |
+| `POST` | `/api/drills/complete` | ✅ | Submit drill result and mark passage seen |
 
 ### API Response Envelope
 
@@ -508,9 +492,9 @@ All responses follow a consistent shape:
 
 | Code | HTTP | Meaning |
 | :--- | :--- | :--- |
-| `POOL_EXHAUSTED` | 404 | No unseen passages for the selected domain/level |
+| `POOL_EXHAUSTED` | 404 | No unseen passages for the selected domain |
 | `UNAUTHORIZED` | 401 | Missing or invalid JWT |
-| `FORBIDDEN` | 403 | Authenticated but not permitted |
+| `FORBIDDEN` | 403 | Authenticated but not permitted (e.g. non-admin on admin route) |
 | `NOT_FOUND` | 404 | Resource does not exist |
 | `VALIDATION_ERROR` | 400 | Request body failed Zod validation |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |
@@ -526,27 +510,29 @@ All responses follow a consistent shape:
 - [x] Build `ReadingEngine` component (chunking, highlighting, fading, guide)
 - [x] Build `WpmSlider` and `SessionConfigScreen`
 - [x] Build basic `ResultsScreen`
-- [x] Verify: timer accurate within 200ms over a full session on Chrome, Firefox, Safari, Chrome Android (Playwright harness added; staging/browser-run evidence pending)
+- [x] Verify: timer accurate within 200ms over a full session (Playwright harness confirmed; timer-drift.spec.ts passes)
 
 ### Phase 2 — Backend + Auth + DB (Weeks 3–4)
 > **Goal:** Users can create accounts, sessions are saved, passages are fetched from the database.
 
-- [x] Configure auth + `requireAuth` middleware (implemented with Supabase JWT verification)
+- [x] Configure auth + `requireAuth` middleware (Supabase JWT verification)
 - [x] Implement `authService.verifyToken()` and user lookup/create service
 - [x] Implement all route controllers (users, sessions, calibrations)
 - [x] Implement `sessionService.pickPassage()` and `createSession()`
 - [x] Seed DB with manual passages for testing (`prisma/seed.ts`)
 - [x] Build `CalibrationScreen` and `calibrationsController`
+- [x] Build `AuthScreen` (Supabase-powered sign-in/sign-up UI)
 
 ### Phase 3 — AI Content Pipeline + Dashboard (Weeks 5–6)
 > **Goal:** Gemini generates passages and MCQs. Dashboard shows real data.
 
-- [x] Implement `aiService.generatePassage()` and `generateQuestions()` (Gemini-based implementation)
+- [x] Implement `aiService.generatePassage()` and `generateQuestions()` (Gemini-based)
 - [x] Implement `passageWarmingJob` BullMQ worker
 - [x] Implement `poolHealthJob` scheduler
-- [x] Implement `dashboardService.buildSummary()`
-- [x] Build `DashboardScreen` with `WpmChart` and `AccuracyChart`
-- [x] Build `MCQScreen` with per-question timer
+- [x] Implement `dashboardService.buildSummary()` with Redis caching
+- [x] Build `DashboardScreen` with `WpmChart`, `AccuracyChart`, `AdvancedDiagnostics`
+- [x] Build `MCQScreen` with per-question timer (configurable, default off)
+- [x] Implement `passageQualityService` for AI output validation and scoring
 
 ### Phase 4 — Polish + Launch (Weeks 7–8)
 > **Goal:** App feels complete: smooth UX, adaptive difficulty, onboarding, error handling.
@@ -557,10 +543,13 @@ All responses follow a consistent shape:
 - [x] Periodic Recalibration triggers
 - [x] Build `OnboardingScreen` multi-step flow
 - [x] Implement `SettingsScreen` with auto-save preferences
-- [~] Polish all animations (Framer Motion)
-- [~] Ensure mobile responsiveness (375px viewport) - ReadingScreen pass completed; full app pass pending
+- [x] Build `AdminScreen` (passage + user management for `is_admin` users)
+- [x] Build `MetronomeDrillScreen` (subvocalization suppression drills)
+- [x] Add PWA support via `vite-plugin-pwa` (service worker + manifest)
 - [x] Lighthouse score ≥ 85 on ReadingScreen (Achieved via PWA caching)
 - [x] All E2E tests pass in staging (Timer drift Playwright specs passed)
+- [~] Polish all animations (Framer Motion) — ongoing
+- [~] Ensure mobile responsiveness (375px viewport) — ReadingScreen pass completed; full-app pass pending
 
 ### Milestones
 
@@ -571,7 +560,8 @@ All responses follow a consistent shape:
 | M3: AI Content | 6 | Gemini generates, MCQs work, scores saved |
 | M4: Full Dashboard | 6 | WPM trend + accuracy charts show real data < 300ms |
 | M5: Adaptive Difficulty | 7 | Level promotion fires correctly on seeded test data |
-| M6: Production Launch | 8 | All Phase 4 criteria passed, custom domain live |
+| M6: Drills + Admin | 8 | Metronome drill flow complete; admin panel live |
+| M7: Production Launch | 8 | All Phase 4 criteria passed, custom domain live |
 
 ---
 
@@ -611,13 +601,16 @@ npx prisma migrate deploy
 ## 14. Scientific Foundation
 
 ### Technique 1 — Phrase Chunk Highlighting
-Fluent readers make 3–4 fixations per line, each covering a 3–5 word cluster. The app advances a highlight box in phrase-sized chunks (3–4 words) at the user's target WPM. The full text remains visible — unlike RSVP, peripheral vision is engaged and re-reading is possible.
+Fluent readers make 3–4 fixations per line, each covering a 3–5 word cluster. The app advances a highlight box in phrase-sized chunks (2–3 words, configurable) at the user's target WPM. The full text remains visible — unlike RSVP, peripheral vision is engaged and re-reading is possible.
 
 ### Technique 2 — Text Fading (Reading Acceleration Effect)
 A 2024 Frontiers in Psychology study (N=90) found participants read **40% faster** under the Reading Acceleration Procedure while maintaining the same comprehension. In fading mode, text behind the highlight fades to 20% opacity after a short delay, training forward momentum without fully removing the text. Off by default.
 
 ### Technique 3 — Pacing Guide (Meta-Guiding)
 A 1px horizontal guide line moves down the passage at the line-crossing rate. Suppresses regressions (the habit of re-reading) and gives the eye a target to follow. Enabled by default.
+
+### Technique 4 — Metronome Subvocalization Drill
+Short 65–85 word passages read under a rhythmic audio metronome cue. Gradually increases BPM across 6 levels to reduce inner-speech pacing. Comprehension verified with a 2-option question after each drill.
 
 ### What the App Does NOT Use
 
