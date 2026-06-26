@@ -14,7 +14,8 @@
     "db:seed": "tsx ../prisma/seed.ts",
     "db:studio": "prisma studio --schema ../prisma/schema.prisma",
     "db:migrate-fonts": "tsx src/scripts/migrate_font_sizes.ts",
-    "db:disable-features": "tsx src/scripts/disable_non_admin_features.ts"
+    "db:disable-features": "tsx src/scripts/disable_non_admin_features.ts",
+    "benchmark:perf": "tsx src/scripts/benchmarkDashboard.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -4,6 +4,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { redis, isRedisAvailable } from "../lib/redis.js";
 import { AppError } from "../types/index.js";
 
 const SubmitSchema = z.object({
@@ -18,6 +19,15 @@ export async function submitCalibration(req: Request, res: Response, next: NextF
     const cal = await prisma.calibration.create({
       data: { user_id: req.auth!.userId, wpm: parsed.data.wpm, recorded_at: new Date(parsed.data.recorded_at) },
     });
+
+    if (isRedisAvailable) {
+      try {
+        await redis.del(`dashboard:summary:${req.auth!.userId}`);
+      } catch (err) {
+        // ignore deletion errors
+      }
+    }
+
     res.status(201).json({ success: true, data: cal });
   } catch (err) { next(err); }
 }

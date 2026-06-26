@@ -2,7 +2,7 @@
  * client/src/App.tsx
  */
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useEffect, useState, useLayoutEffect } from "react";
+import { useEffect, useState, useLayoutEffect, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/shared/Navbar";
 import Toast from "@/components/shared/Toast";
@@ -18,18 +18,18 @@ function ScrollToTop() {
   return null;
 }
 
-// Screens
-import OnboardingScreen from "@/screens/OnboardingScreen";
-import CalibrationScreen from "@/screens/CalibrationScreen";
-import SessionConfigScreen from "@/screens/SessionConfigScreen";
-import ReadingScreen from "@/screens/ReadingScreen";
-import MCQScreen from "@/screens/MCQScreen";
-import ResultsScreen from "@/screens/ResultsScreen";
-import DashboardScreen from "@/screens/DashboardScreen";
-import SettingsScreen from "@/screens/SettingsScreen";
-import AdminScreen from "@/screens/AdminScreen";
-import AuthScreen from "@/screens/AuthScreen";
-import MetronomeDrillScreen from "@/screens/MetronomeDrillScreen";
+// Lazy loaded Screens
+const OnboardingScreen = lazy(() => import("@/screens/OnboardingScreen"));
+const CalibrationScreen = lazy(() => import("@/screens/CalibrationScreen"));
+const SessionConfigScreen = lazy(() => import("@/screens/SessionConfigScreen"));
+const ReadingScreen = lazy(() => import("@/screens/ReadingScreen"));
+const MCQScreen = lazy(() => import("@/screens/MCQScreen"));
+const ResultsScreen = lazy(() => import("@/screens/ResultsScreen"));
+const DashboardScreen = lazy(() => import("@/screens/DashboardScreen"));
+const SettingsScreen = lazy(() => import("@/screens/SettingsScreen"));
+const AdminScreen = lazy(() => import("@/screens/AdminScreen"));
+const AuthScreen = lazy(() => import("@/screens/AuthScreen"));
+const MetronomeDrillScreen = lazy(() => import("@/screens/MetronomeDrillScreen"));
 
 export default function App() {
   const isFullscreen = useUIStore((s) => s.isFullscreen);
@@ -97,25 +97,27 @@ export default function App() {
       <div className="flex-grow">
         {!isFullscreen && session && <Navbar />}
 
-        <Routes>
-          {/* Public */}
-          <Route path="/auth" element={!session ? <AuthScreen /> : <Navigate to="/dashboard" />} />
-          
-          {/* Protected */}
-          <Route path="/dashboard"       element={session ? <DashboardScreen /> : <Navigate to="/auth" />} />
-          <Route path="/onboarding"      element={session ? <OnboardingScreen /> : <Navigate to="/auth" />} />
-          <Route path="/calibration"     element={session ? <CalibrationScreen /> : <Navigate to="/auth" />} />
-          <Route path="/session/config"  element={session ? <SessionConfigScreen /> : <Navigate to="/auth" />} />
-          <Route path="/session/reading" element={session ? <ReadingScreen /> : <Navigate to="/auth" />} />
-          <Route path="/session/mcq"     element={session ? <MCQScreen /> : <Navigate to="/auth" />} />
-          <Route path="/session/results" element={session ? <ResultsScreen /> : <Navigate to="/auth" />} />
-          <Route path="/settings"        element={session ? <SettingsScreen /> : <Navigate to="/auth" />} />
-          <Route path="/admin"           element={session ? <AdminScreen /> : <Navigate to="/auth" />} />
-          <Route path="/drills/metronome" element={session ? <MetronomeDrillScreen /> : <Navigate to="/auth" />} />
+        <Suspense fallback={<LoadingSpinner fullPage />}>
+          <Routes>
+            {/* Public */}
+            <Route path="/auth" element={!session ? <AuthScreen /> : <Navigate to="/dashboard" />} />
+            
+            {/* Protected */}
+            <Route path="/dashboard"       element={session ? <DashboardScreen /> : <Navigate to="/auth" />} />
+            <Route path="/onboarding"      element={session ? <OnboardingScreen /> : <Navigate to="/auth" />} />
+            <Route path="/calibration"     element={session ? <CalibrationScreen /> : <Navigate to="/auth" />} />
+            <Route path="/session/config"  element={session ? <SessionConfigScreen /> : <Navigate to="/auth" />} />
+            <Route path="/session/reading" element={session ? <ReadingScreen /> : <Navigate to="/auth" />} />
+            <Route path="/session/mcq"     element={session ? <MCQScreen /> : <Navigate to="/auth" />} />
+            <Route path="/session/results" element={session ? <ResultsScreen /> : <Navigate to="/auth" />} />
+            <Route path="/settings"        element={session ? <SettingsScreen /> : <Navigate to="/auth" />} />
+            <Route path="/admin"           element={session ? <AdminScreen /> : <Navigate to="/auth" />} />
+            <Route path="/drills/metronome" element={session ? <MetronomeDrillScreen /> : <Navigate to="/auth" />} />
 
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
       </div>
 
       {!isFullscreen && !isReadingOrMCQ && !isAuthPage && (

@@ -64,6 +64,25 @@ export function buildPassageTitle(topicKey: string | null | undefined): string {
   return title || fallback;
 }
 
+function countSyllables(word: string): number {
+  word = word.toLowerCase();
+  if (word.length <= 3) return 1;
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
+  word = word.replace(/^y/, '');
+  const syllables = word.match(/[aeiouy]{1,2}/g);
+  return syllables ? syllables.length : 1;
+}
+
+export function calculateFleschKincaid(text: string): number {
+  const words = text.match(/\b\w+\b/g) || [];
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  if (words.length === 0 || sentences.length === 0) return 0;
+  
+  const syllables = words.reduce((acc, word) => acc + countSyllables(word), 0);
+  const score = 0.39 * (words.length / sentences.length) + 11.8 * (syllables / words.length) - 15.59;
+  return Math.round(score * 10) / 10;
+}
+
 // ── HEURISTICS MARKERS ────────────────────────────────────────────────────────
 
 const CONCEPT_DENSITY_MARKERS = [
@@ -113,11 +132,11 @@ async function evaluatePassageWithAI(
   body: string,
   title: string,
   userCustomApiKey?: string | null
-): Promise<{ inference_potential: number; naturalness: number; title_quality: number }> {
+): Promise<{ inference_potential: number; naturalness: number; title_quality: number; readability_complexity: number }> {
   const apiKey = userCustomApiKey || process.env.GEMINI_API_KEY || "";
   if (!apiKey) {
     console.warn("⚠️ No GEMINI_API_KEY found, returning default content scores (7/10)");
-    return { inference_potential: 7, naturalness: 7, title_quality: 7 };
+    return { inference_potential: 7, naturalness: 7, title_quality: 7, readability_complexity: 7 };
   }
 
   try {
@@ -133,8 +152,9 @@ async function evaluatePassageWithAI(
             inference_potential: { type: SchemaType.NUMBER },
             naturalness: { type: SchemaType.NUMBER },
             title_quality: { type: SchemaType.NUMBER },
+            readability_complexity: { type: SchemaType.NUMBER },
           },
-          required: ["inference_potential", "naturalness", "title_quality"],
+          required: ["inference_potential", "naturalness", "title_quality", "readability_complexity"],
         } as any,
       },
     });
@@ -148,10 +168,11 @@ async function evaluatePassageWithAI(
         Title:
         ${title}
         
-        Evaluate and score the following three dimensions from 0 to 10 (accept floats or ints, e.g., 8.5 or 8):
+        Evaluate and score the following four dimensions from 0 to 10 (accept floats or ints, e.g., 8.5 or 8):
         1. "inference_potential" (0-10): How many strong GMAT/CAT-style inference, assumption, author attitude, and paragraph role questions could naturally be created from this passage? High score means the passage is dense with implicit assumptions and logical pivots.
         2. "naturalness" (0-10): Does this passage read like a real, professionally written magazine or scholarly journal article (e.g. Economist, Scientific American) as opposed to sounding like dry, robotic, or formulaic AI-generated text?
         3. "title_quality" (0-10): Is the title creative, academically credible, specific, and organic (e.g., "When Evidence Outlives Theory") rather than templated or generic (e.g., "The Debate Over Memory", "Rethinking X")?
+        4. "readability_complexity" (0-10): How appropriately complex is the vocabulary and syntax for a university-level reader aiming for high WPM difficulty? (10 is very appropriately dense and complex, 0 is overly simplistic).
         
         Output the scores in the required JSON format.
     `;
@@ -161,16 +182,18 @@ async function evaluatePassageWithAI(
       inference_potential: number;
       naturalness: number;
       title_quality: number;
+      readability_complexity: number;
     };
 
     return {
       inference_potential: Math.max(0, Math.min(10, parsed.inference_potential || 7)),
       naturalness: Math.max(0, Math.min(10, parsed.naturalness || 7)),
       title_quality: Math.max(0, Math.min(10, parsed.title_quality || 7)),
+      readability_complexity: Math.max(0, Math.min(10, parsed.readability_complexity || 7)),
     };
   } catch (err: any) {
     console.warn(`⚠️ Gemini quality evaluation call failed: ${err.message}. Defaulting to scores (7/10)`);
-    return { inference_potential: 7, naturalness: 7, title_quality: 7 };
+    return { inference_potential: 7, naturalness: 7, title_quality: 7, readability_complexity: 7 };
   }
 }
 
@@ -238,11 +261,11 @@ export async function evaluatePassageQuality(
   }
   varietyScore = Math.max(0, varietyScore);
 
-  // 3. LLM Evaluated Content Metrics (Max 25 out of 30 scaled)
-  // LLM scores sum to 30. We scale the 30-point LLM total to a maximum of 25 points.
+  // 3. LLM Evaluated Content Metrics (Max 25 out of 40 scaled)
+  // LLM scores sum to 40. We scale the 40-point LLM total to a maximum of 25 points.
   const aiScores = await evaluatePassageWithAI(input.body, title, userCustomApiKey);
-  const rawAISum = aiScores.inference_potential + aiScores.naturalness + aiScores.title_quality;
-  const aiScoreScaled = (rawAISum / 30) * 25;
+  const rawAISum = aiScores.inference_potential + aiScores.naturalness + aiScores.title_quality + aiScores.readability_complexity;
+  const aiScoreScaled = (rawAISum / 40) * 25;
 
   // 4. Source Trust Bonus / Penalty
   let trustBonus = 0;
@@ -251,10 +274,14 @@ export async function evaluatePassageQuality(
   } else if (input.source === "seed") {
     trustBonus = -5;
   }
+  
+  // 5. Readability Penalty (Flesch-Kincaid Grade Level)
+  const fkGrade = calculateFleschKincaid(input.body);
+  const readabilityPenalty = fkGrade < 12 ? Math.round((12 - fkGrade) * 5) : 0;
 
   // Calculate final score out of 100
   const finalScore = Math.max(0, Math.min(100, Math.round(
-    formatScore + conceptScore + argScore + nuanceScore + varietyScore + aiScoreScaled + trustBonus - labelPenalty
+    formatScore + conceptScore + argScore + nuanceScore + varietyScore + aiScoreScaled + trustBonus - labelPenalty - readabilityPenalty
   )));
 
   // Scores < 50 go to draft as requested by the user, status >= 60 is ready.

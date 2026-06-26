@@ -29,34 +29,41 @@ import { logger } from "../lib/logger.js";
 export async function runStreakResetCheck(): Promise<void> {
   logger.info("Running daily streak reset check...");
 
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-
   try {
-    // Find all users who haven't had a session in over 48 hours
-    // and whose streak is currently > 0
-    const usersToReset = await prisma.user.findMany({
-      where: {
-        last_session_at: {
-          lt: fortyEightHoursAgo,
-        },
-        streak_days: {
-          gt: 0,
-        },
-      },
+    // Find all users with streak > 0
+    const activeUsers = await prisma.user.findMany({
+      where: { streak_days: { gt: 0 } },
+      select: { id: true, last_session_at: true, timezone_offset: true }
     });
+
+    const now = Date.now();
+    const usersToReset: string[] = [];
+
+    for (const u of activeUsers) {
+      if (!u.last_session_at) continue;
+      
+      const offset = u.timezone_offset || 0;
+      const yesterday = new Date(now - offset * 60_000);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayDate = yesterday.toISOString().slice(0, 10);
+      
+      const today = new Date(now - offset * 60_000);
+      const todayDate = today.toISOString().slice(0, 10);
+
+      const userLastSessionLocal = new Date(u.last_session_at.getTime() - offset * 60_000).toISOString().slice(0, 10);
+
+      // If last session was not today AND not yesterday in their local time, streak is broken
+      if (userLastSessionLocal !== todayDate && userLastSessionLocal !== yesterdayDate) {
+        usersToReset.push(u.id);
+      }
+    }
 
     if (usersToReset.length > 0) {
       logger.info({ count: usersToReset.length }, "Resetting streaks for inactive users");
 
       await prisma.user.updateMany({
-        where: {
-          id: {
-            in: usersToReset.map((u) => u.id),
-          },
-        },
-        data: {
-          streak_days: 0,
-        },
+        where: { id: { in: usersToReset } },
+        data: { streak_days: 0 },
       });
     } else {
       logger.info("No users require streak reset.");

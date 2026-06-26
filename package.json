@@ -13,7 +13,8 @@
     "type-check": "npm run type-check --workspace=client && npm run type-check --workspace=server",
     "qa:lighthouse:reading": "npx lighthouse http://localhost:5173/session/reading --chrome-flags=\"--headless\" --only-categories=performance,accessibility,best-practices --output=json --output-path=./artifacts/lighthouse-reading.json",
     "qa:e2e:staging": "npx playwright test -c e2e/playwright.config.ts",
-    "qa:e2e:staging:headed": "npx playwright test -c e2e/playwright.config.ts --headed"
+    "qa:e2e:staging:headed": "npx playwright test -c e2e/playwright.config.ts --headed",
+    "benchmark:perf": "npm run benchmark:perf --workspace=server"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

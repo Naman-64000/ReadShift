@@ -18,7 +18,7 @@ export default function SessionConfigScreen() {
   const summary = useDashboardStore((s) => s.summary);
   const fetchSummary = useDashboardStore((s) => s.fetchSummary);
   const prefs = useUserStore((s) => s.preferences);
-  const { startSession, prefetchPassage, error, setError, lastSelectedWpm, setLastSelectedWpm } = useSessionStore();
+  const { startSession, prefetchPassage, error, setError, lastSelectedWpm, setLastSelectedWpm, passage: prefetchedData } = useSessionStore();
 
   const [targetWpm, setTargetWpm] = useState(
     lastSelectedWpm ?? summary?.recommended_wpm ?? 200
@@ -147,6 +147,15 @@ export default function SessionConfigScreen() {
           <h1 className="text-3xl font-black text-[rgb(var(--text))]">Configure Session</h1>
           <p className="text-slate-400 text-sm">Set your pace and preferences for this reading session.</p>
         </div>
+
+        {/* SR Indicator */}
+        {(prefetchedData?.passage as any)?.is_spaced_repetition && (
+          <div className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-300 flex items-center justify-center gap-2">
+            <span>🔄</span>
+            <strong>Spaced Repetition:</strong>
+            <span>Reviewing a challenging passage from your past sessions.</span>
+          </div>
+        )}
 
         {/* WPM Slider */}
         <div className="rounded-2xl border border-white/10 bg-white/4 p-6">

@@ -3,10 +3,25 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import { redis, isRedisAvailable } from "../lib/redis.js";
 import type { DashboardSummary } from "./dashboardService.types.js";
+import { logger } from "../lib/logger.js";
 
 export const dashboardService = {
   async buildSummary(userId: string): Promise<DashboardSummary> {
+    const cacheKey = `dashboard:summary:\${userId}`;
+
+    if (isRedisAvailable) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached) as DashboardSummary;
+        }
+      } catch (err) {
+        logger.warn({ err, userId }, "Failed to read dashboard summary from Redis cache");
+      }
+    }
+
     const [sessions, calibrations, user] = await Promise.all([
       prisma.session.findMany({
         where: { user_id: userId },
@@ -72,21 +87,37 @@ export const dashboardService = {
       .map((d) => d.domain);
 
     // Recommended WPM
-    // The recommendation should depend solely on the most recent calibration speed (+20 WPM, capping at 500) if one exists.
-    // Otherwise, fallback to session speed or a default of 350.
+    // Adaptive pacing logic based on recent session performance
     const most_recent_calib = calibrations[0]?.wpm;
     let raw_recommended = 200;
 
-    if (most_recent_calib !== undefined) {
+    if (sessions.length > 0) {
+      const last3 = sessions.slice(0, 3);
+      const last3TotalComp = last3.reduce((s, x) => s + x.comprehension, 0);
+      const last3TotalQs = last3.reduce((s, x) => s + ((x as any)._count?.responses || 3), 0);
+      const last3AvgPct = last3TotalQs > 0 ? (last3TotalComp / last3TotalQs) * 100 : 0;
+
+      // Adaptive pacing logic:
+      // If recent comprehension is < 66%, demote WPM.
+      // If recent comprehension is >= 75%, promote WPM.
+      // Otherwise keep current WPM.
+      if (last3.length === 3 && last3AvgPct < 66) {
+        raw_recommended = Math.round((current_wpm - 20) / 10) * 10;
+      } else if (last3.length === 3 && last3AvgPct >= 75) {
+        raw_recommended = Math.round((current_wpm + 20) / 10) * 10;
+      } else {
+        raw_recommended = Math.round(current_wpm / 10) * 10;
+      }
+      
+      // Prevent dropping too far below a recent baseline calibration
+      if (most_recent_calib !== undefined) {
+        raw_recommended = Math.max(raw_recommended, most_recent_calib - 20);
+      }
+    } else if (most_recent_calib !== undefined) {
       raw_recommended = Math.round((most_recent_calib + 20) / 10) * 10;
-    } else if (sessions.length > 0) {
-      const allGood = last3.length === 3 && last3.every((s) => s.comprehension >= 2);
-      raw_recommended = allGood
-        ? Math.round((current_wpm + 25) / 10) * 10
-        : Math.round(current_wpm / 10) * 10;
     }
 
-    const recommended_wpm = Math.max(100, Math.min(300, raw_recommended));
+    const recommended_wpm = Math.max(100, Math.min(600, raw_recommended));
 
     // Recommended domain = weakest domain if any, otherwise random from preferred
     const recommended_domain = weak_domains.length
@@ -234,7 +265,7 @@ export const dashboardService = {
       });
     });
 
-    return {
+    const summary = {
       current_wpm,
       baseline_wpm,
       streak_days,
@@ -250,5 +281,15 @@ export const dashboardService = {
       heatmap_data,
       sweet_spot,
     };
+
+    if (isRedisAvailable) {
+      try {
+        await redis.setex(cacheKey, 900, JSON.stringify(summary)); // 15 mins TTL
+      } catch (err) {
+        logger.warn({ err, userId }, "Failed to save dashboard summary to Redis cache");
+      }
+    }
+
+    return summary;
   },
 };

@@ -59,6 +59,7 @@ model User {
   is_admin  Boolean  @default(false) @map("is_admin")
   streak_days Int      @default(0) @map("streak_days")
   last_session_at DateTime? @db.Timestamptz(3) @map("last_session_at")
+  timezone_offset Int      @default(0) @map("timezone_offset")
   created_at DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
   updated_at DateTime @updatedAt @db.Timestamptz(3) @map("updated_at")
 

@@ -3,8 +3,8 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import { redis, isRedisAvailable } from "../lib/redis.js";
 import { AppError } from "../types/index.js";
-import crypto from "crypto";
 import { staticVault } from "../data/staticVault.js";
 import { buildPassageTitle, evaluatePassageQuality } from "./passageQualityService.js";
 import { aiService } from "./aiService.js";
@@ -67,6 +67,75 @@ export const sessionService = {
         explicitPassage.questions = q;
       }
       return explicitPassage;
+    }
+
+    // ── Spaced Repetition (SR) Phase ──
+    if (!passageId && !prefetch) {
+      // Find sessions older than 3 days where comprehension < 2
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+      const eligibleSrSessions = await prisma.session.findMany({
+        where: {
+          user_id: userId,
+          completed_at: { lt: threeDaysAgo },
+          comprehension: { lt: 2 }
+        },
+        orderBy: { completed_at: 'asc' },
+        take: 10
+      });
+      
+      if (eligibleSrSessions.length > 0) {
+        // Shuffle to pick a random SR candidate
+        for (let i = eligibleSrSessions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [eligibleSrSessions[i], eligibleSrSessions[j]] = [eligibleSrSessions[j], eligibleSrSessions[i]];
+        }
+        
+        for (const srSession of eligibleSrSessions) {
+          const srPassage = await prisma.passage.findUnique({
+            where: { id: srSession.passage_id },
+            include: {
+              questions: { select: { id: true, passage_id: true, type: true, stem: true, options: true } }
+            }
+          });
+          
+          if (srPassage && (domain ? srPassage.domain === domain : true)) {
+            const alreadySeen = await prisma.userPassageSeen.findUnique({
+               where: { user_id_passage_id: { user_id: userId, passage_id: srPassage.id } }
+            });
+            
+            if (alreadySeen && !alreadySeen.reallowed) {
+              await prisma.userPassageSeen.update({
+                where: { id: alreadySeen.id },
+                data: { reallowed: true }
+              });
+            }
+            
+            // Add custom flag
+            (srPassage as any).is_spaced_repetition = true;
+            
+            if (srPassage.questions) {
+              const q = [...srPassage.questions];
+              for (let i = q.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [q[i], q[j]] = [q[j], q[i]];
+              }
+              srPassage.questions = q;
+            }
+            
+            console.log(`[pickPassage] Picked SR passage \${srPassage.id} for user \${userId}`);
+            
+            await prisma.passageAssignment.create({
+              data: {
+                user_id: userId,
+                passage_id: srPassage.id,
+                domain_requested: (srPassage.domain as any) ?? null,
+              },
+            });
+            
+            return srPassage;
+          }
+        }
+      }
     }
 
     const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
@@ -476,6 +545,7 @@ export const sessionService = {
         data: {
           streak_days: newStreak,
           last_session_at: now,
+          ...(payload.timezone_offset !== undefined ? { timezone_offset: payload.timezone_offset } : {})
         },
       });
 
@@ -509,6 +579,14 @@ export const sessionService = {
       correct_index: r.question.correct_index,
       explanations: r.question.explanations,
     }));
+
+    if (isRedisAvailable) {
+      try {
+        await redis.del(`dashboard:summary:\${userId}`);
+      } catch (err) {
+        // ignore deletion errors
+      }
+    }
 
     return { session, responses: responsesWithCorrect, actual_wpm, comprehension };
   },

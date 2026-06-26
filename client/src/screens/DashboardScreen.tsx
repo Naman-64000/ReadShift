@@ -125,6 +125,23 @@ export default function DashboardScreen() {
           </div>
         </div>
 
+        {/* Recalibration Prompt */}
+        {summary.sessions_completed > 0 && summary.sessions_completed % 15 === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 flex items-center justify-between"
+          >
+            <div>
+              <h3 className="text-amber-400 font-bold flex items-center gap-2"><span>🎯</span> Time for a Recalibration!</h3>
+              <p className="text-amber-200/80 text-sm mt-0.5">You've completed {summary.sessions_completed} sessions. Recalibrate your baseline to ensure your adaptive difficulty stays perfectly tuned.</p>
+            </div>
+            <Button size="sm" onClick={() => navigate("/calibration")} className="bg-amber-500 text-amber-950 hover:bg-amber-400 shrink-0">
+              Recalibrate Now
+            </Button>
+          </motion.div>
+        )}
+
         {/* Stat cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatCard

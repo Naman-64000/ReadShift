@@ -14,6 +14,8 @@ const LITE_MODELS = [
   "gemini-1.5-flash"
 ];
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 function getAIClient(customApiKey?: string | null) {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY || "";
   return new GoogleGenerativeAI(apiKey);
@@ -194,6 +196,7 @@ export const aiService = {
       } catch (err) {
         logger.warn({ modelName, err }, "Gemini model failed in generatePassage, trying backup...");
         lastErr = err;
+        await delay(1500); // Backoff before next model
       }
     }
 
@@ -296,6 +299,7 @@ export const aiService = {
       } catch (err) {
         logger.warn({ modelName, err }, "Gemini model failed in generateDrillPassage, trying backup...");
         lastErr = err;
+        await delay(1500); // Backoff before next model
       }
     }
 
@@ -474,6 +478,7 @@ export const aiService = {
       } catch (err) {
         logger.warn({ modelName, err }, "Gemini model failed in generateQuestions, trying backup...");
         lastErr = err;
+        await delay(1500); // Backoff before next model
       }
     }
 

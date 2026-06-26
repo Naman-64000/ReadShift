@@ -37,6 +37,8 @@ export async function runPassageWarming(
 ): Promise<void> {
   logger.info({ domain, count }, "Starting passage warming run");
 
+  let consecutiveFailures = 0;
+
   for (let i = 0; i < count; i++) {
     try {
       // 1. Generate Passage
@@ -81,10 +83,60 @@ export async function runPassageWarming(
       });
 
       logger.info({ domain, step: i + 1 }, "Generated passage successfully");
+      consecutiveFailures = 0; // Reset on success
     } catch (err) {
       logger.error({ err, domain }, "Failed to generate passage in warming run");
-      // Continue to next generation rather than failing the whole batch
+      consecutiveFailures++;
+      
+      if (consecutiveFailures >= 3) {
+        logger.error({ domain }, "Circuit breaker tripped: 3 consecutive failures. Aborting generation and injecting fallback passage.");
+        await injectFallbackPassage(domain);
+        break; // Stop trying
+      }
+      
+      // Wait a bit before next attempt after a failure
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
+  }
+}
+
+async function injectFallbackPassage(domain: string) {
+  try {
+    const hash = crypto.createHash("sha256").update("fallback-" + Date.now()).digest("hex");
+    await prisma.passage.create({
+      data: {
+        body: "This is a curated fallback passage injected because the AI service is currently unavailable. It serves to maintain the passage pool health during temporary outages. The cognitive and syntactic density here is adjusted manually to provide a baseline reading experience. While it may not be dynamically generated, it ensures that your reading sessions remain uninterrupted and effectively calibrated.",
+        word_count: 55,
+        domain: domain as any,
+        generated_by: "fallback-system",
+        source: "curated",
+        status: "ready",
+        quality_score: 75,
+        title: "System Fallback Passage",
+        topic_key: "system-fallback",
+        paragraph_roadmaps: ["Fallback mechanism triggered"],
+        hash,
+        questions: {
+          create: [
+            {
+              type: "main_idea",
+              stem: "What is the primary purpose of this passage?",
+              options: ["To test the system", "To maintain pool health during outages", "To provide a complex analysis", "To replace all AI generations"],
+              correct_index: 1,
+              explanations: [
+                "Incorrect. The text is not just for testing.",
+                "Correct. The passage explicitly states it maintains pool health during outages.",
+                "Incorrect. The text is fairly simple and direct.",
+                "Incorrect. It's a temporary fallback, not a complete replacement."
+              ]
+            }
+          ]
+        }
+      }
+    });
+    logger.info({ domain }, "Fallback passage injected successfully");
+  } catch (err) {
+    logger.error({ err, domain }, "Failed to inject fallback passage");
   }
 }
 
