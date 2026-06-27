@@ -8,7 +8,6 @@ ALTER COLUMN "assigned_at" SET DATA TYPE TIMESTAMPTZ(3);
 -- AlterTable
 ALTER TABLE "passages" ADD COLUMN     "flag_count" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN     "paragraph_roadmaps" TEXT[] DEFAULT ARRAY[]::TEXT[],
-ADD COLUMN     "skim_highlights" TEXT[] DEFAULT ARRAY[]::TEXT[],
 ADD COLUMN     "title" TEXT NOT NULL,
 ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3);
 
@@ -30,7 +29,6 @@ ADD COLUMN     "laap_enabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN     "mcqs_enabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN     "progress_bar_enabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN     "roadmaps_enabled" BOOLEAN NOT NULL DEFAULT true,
-ADD COLUMN     "skim_enabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN     "timed_passages_enabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN     "timer_enabled" BOOLEAN NOT NULL DEFAULT true,
 ALTER COLUMN "chunk_size" SET DEFAULT 2,
