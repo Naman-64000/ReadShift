@@ -16,12 +16,14 @@
 6. [Environment Variables](#6-environment-variables)
 7. [Database Setup](#7-database-setup)
 8. [Running the App](#8-running-the-app)
-9. [Background Jobs](#9-background-jobs)
-10. [Database Schema](#10-database-schema)
-11. [API Reference](#11-api-reference)
-12. [Build Phases & Milestones](#12-build-phases--milestones)
-13. [Deployment](#13-deployment)
-14. [Scientific Foundation](#14-scientific-foundation)
+9. [Testing](#9-testing)
+10. [Background Jobs](#10-background-jobs)
+11. [Database Schema](#11-database-schema)
+12. [API Reference](#12-api-reference)
+13. [Build Phases & Milestones](#13-build-phases--milestones)
+14. [Deployment](#14-deployment)
+15. [CI/CD Pipeline](#15-cicd-pipeline)
+16. [Scientific Foundation](#16-scientific-foundation)
 
 ---
 
@@ -73,6 +75,25 @@ ReadShift is a web application that trains exam candidates to read faster withou
 | Zod | 3.23 | Runtime request body validation |
 | jose | 5 | JWT verification (Supabase JWKS) |
 | @google/generative-ai | 0.24 | Google Gemini API for passage + MCQ generation |
+| swagger-jsdoc | 6 | Generates OpenAPI 3.0 spec from JSDoc annotations |
+| swagger-ui-express | 5 | Serves interactive Swagger UI at `/api-docs` |
+
+### Infrastructure
+
+| Technology | Purpose |
+| :--- | :--- |
+| Docker + Docker Compose | Containerises all four services (postgres, redis, backend, frontend) |
+| nginx | Serves the production React build with SPA fallback routing |
+| GitHub Actions | CI pipeline: type-check → test → Docker build on every push to `main` |
+
+### Testing
+
+| Technology | Purpose |
+| :--- | :--- |
+| Vitest | Unit + integration test runner (server & client) |
+| supertest | HTTP integration testing for Express routes |
+| @testing-library/react | React component testing utilities |
+| Playwright | E2E regression tests (timer drift spec) |
 
 ### ⚡ Latency & Caching Performance
 
@@ -109,9 +130,14 @@ Simulates a real cloud deployment (e.g., Railway/Render with a PostgreSQL RTT ne
 ```
 ReadShift/                          # Monorepo root
 ├── package.json                    # Workspace root (npm workspaces)
-├── docker-compose.yml              # Local PostgreSQL + Redis
+├── docker-compose.yml              # All four services: postgres, redis, backend, frontend
 ├── .env.example                    # All required env vars (copy → .env)
 ├── .gitignore
+├── PRODUCTION_GUIDE.md             # Step-by-step deployment guide (Render, Vercel, Docker)
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # GitHub Actions: type-check → test → Docker build
 │
 ├── prisma/
 │   ├── schema.prisma               # Complete DB schema (10 tables)
@@ -127,14 +153,24 @@ ReadShift/                          # Monorepo root
 │
 ├── client/                         # React 18 + Vite frontend
 │   ├── package.json
-│   ├── vite.config.ts              # Vite + PWA plugin config
+│   ├── Dockerfile                  # Multi-stage build → nginx production image
+│   ├── nginx.conf                  # SPA fallback routing + cache headers
+│   ├── vite.config.ts              # Vite + PWA plugin + production build config
+│   ├── vitest.config.ts            # Vitest config (jsdom environment)
 │   ├── tailwind.config.js
 │   ├── tsconfig.json
 │   ├── index.html
+│   ├── public/
+│   │   ├── pwa-192x192.png         # PWA icon (192×192)
+│   │   └── pwa-512x512.png         # PWA icon (512×512)
 │   └── src/
 │       ├── main.tsx                # Entry point — mounts React + Supabase + Router
 │       ├── App.tsx                 # Route tree
 │       ├── index.css               # Tailwind base + design tokens
+│       │
+│       ├── __tests__/              # Vitest unit tests
+│       │   ├── setup.ts            # @testing-library/jest-dom setup
+│       │   └── sessionStore.test.ts # Zustand session state machine tests
 │       │
 │       ├── screens/                # One file per screen/route
 │       │   ├── AuthScreen.tsx
@@ -180,11 +216,15 @@ ReadShift/                          # Monorepo root
 └── server/                         # Node.js + Express backend
     ├── package.json
     ├── tsconfig.json
+    ├── Dockerfile                  # Multi-stage build → production Node image
+    ├── vitest.config.ts            # Vitest config (node environment)
     └── src/
         ├── index.ts                # Express app entry + worker registration
         ├── worker.ts               # BullMQ worker startup
+        ├── swagger.ts              # OpenAPI 3.0 spec (swagger-jsdoc)
         │
         ├── routes/                 # Router modules (thin — delegate to controllers)
+        │   ├── health.ts           # GET /healthz (DB + Redis liveness check)
         │   ├── users.ts            # GET /me, POST /, PATCH /me/preferences, DELETE /me
         │   ├── sessions.ts         # POST /start, POST /, GET /, GET /:id, GET /domain-status
         │   ├── passages.ts         # GET /, POST /:id/flag
@@ -214,13 +254,16 @@ ReadShift/                          # Monorepo root
         │   ├── auth.ts             # requireAuth — validates Supabase JWT
         │   ├── admin.ts            # requireAdmin — is_admin flag guard
         │   ├── timezone.ts         # Reads X-Timezone-Offset header for streak logic
-        │   ├── rateLimiter.ts      # globalRateLimit, sessionRateLimit
+        │   ├── rateLimiter.ts      # globalRateLimit (200 req/min), sessionRateLimit (20/hr)
         │   └── errorHandler.ts     # Global error → JSON envelope mapper
         │
         ├── jobs/                   # BullMQ workers
         │   ├── passageWarmingJob.ts # Generates passages via Gemini when pool is low
         │   ├── poolHealthJob.ts     # Scheduled: checks pool depth, enqueues warming jobs
         │   └── streakResetJob.ts    # Daily: timezone-aware streak reset for inactive users
+        │
+        ├── __tests__/              # Vitest integration tests
+        │   └── health.test.ts      # /healthz + /health endpoint tests (supertest)
         │
         ├── scripts/
         │   └── benchmarkDashboard.ts  # Performance benchmark: DB vs Redis cache latency
@@ -266,7 +309,8 @@ cp .env.example .env
 
 ### Step 3 — Start the database and Redis
 ```bash
-docker compose up -d
+# Starts only postgres + redis (for local dev with npm run dev)
+docker compose up postgres redis -d
 ```
 
 ### Step 4 — Run database migrations and seed
@@ -391,7 +435,34 @@ npm run benchmark:perf -- --simulate-production
 
 ---
 
-## 9. Background Jobs
+## 9. Testing
+
+### Server — Vitest + Supertest
+
+```bash
+cd server
+npm test              # run all tests once
+npm run test:watch    # watch mode during development
+```
+
+### Client — Vitest + Testing Library
+
+```bash
+cd client
+npm test              # run all tests once
+npm run test:watch    # watch mode during development
+```
+
+### What is covered
+
+| Test file | Scope | What it verifies |
+| :--- | :--- | :--- |
+| `server/src/__tests__/health.test.ts` | Integration | `GET /healthz` returns 200 + all checks ok; `/health` alias works |
+| `client/src/__tests__/sessionStore.test.ts` | Unit | Zustand state machine: idle→reading→mcq transitions, error path, answer deduplication, reset |
+
+---
+
+## 10. Background Jobs
 
 | Job | Queue | Schedule | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -401,7 +472,7 @@ npm run benchmark:perf -- --simulate-production
 
 ---
 
-## 10. Database Schema
+## 11. Database Schema
 
 ### Content Domains
 `philosophy` · `psychology` · `history` · `arts_and_museum` · `society` · `culture` · `biology` · `science_and_technology`
@@ -413,7 +484,7 @@ npm run benchmark:perf -- --simulate-production
 
 ---
 
-## 11. API Reference
+## 12. API Reference
 
 All API routes are prefixed with `/api`. All protected routes require a Supabase JWT in the `Authorization: Bearer <token>` header.
 
@@ -476,6 +547,14 @@ All API routes are prefixed with `/api`. All protected routes require a Supabase
 | `POST` | `/api/drills/start` | ✅ | Pick an unseen drill passage for the metronome drill |
 | `POST` | `/api/drills/complete` | ✅ | Submit drill result and mark passage seen |
 
+### Health & Docs Endpoints
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/healthz` | ❌ | Full liveness check — returns DB + Redis status; used by Docker healthcheck |
+| `GET` | `/health` | ❌ | Legacy simple check — `{ status: "ok" }` |
+| `GET` | `/api-docs` | ❌ | Interactive Swagger UI (OpenAPI 3.0) |
+
 ### API Response Envelope
 
 All responses follow a consistent shape:
@@ -501,7 +580,7 @@ All responses follow a consistent shape:
 
 ---
 
-## 12. Build Phases & Milestones
+## 13. Build Phases & Milestones
 
 ### Phase 1 — Core Reading Engine (Weeks 1–2)
 > **Goal:** A user can read a hardcoded passage with chunk highlighting and see their WPM at the end.
@@ -545,11 +624,25 @@ All responses follow a consistent shape:
 - [x] Implement `SettingsScreen` with auto-save preferences
 - [x] Build `AdminScreen` (passage + user management for `is_admin` users)
 - [x] Build `MetronomeDrillScreen` (subvocalization suppression drills)
-- [x] Add PWA support via `vite-plugin-pwa` (service worker + manifest)
+- [x] Add PWA support via `vite-plugin-pwa` (service worker + manifest + icons)
 - [x] Lighthouse score ≥ 85 on ReadingScreen (Achieved via PWA caching)
 - [x] All E2E tests pass in staging (Timer drift Playwright specs passed)
 - [~] Polish all animations (Framer Motion) — ongoing
 - [~] Ensure mobile responsiveness (375px viewport) — ReadingScreen pass completed; full-app pass pending
+
+### Phase 5 — Production Hardening
+> **Goal:** Containerised, CI-tested, fully documented, ready for public deployment.
+
+- [x] Dockerfiles for backend (multi-stage Node) and frontend (Vite → nginx)
+- [x] `docker-compose.yml` updated with all four services + health checks
+- [x] GitHub Actions CI pipeline (type-check, Vitest tests, Docker build)
+- [x] `/healthz` endpoint — checks DB + Redis liveness for orchestrator probes
+- [x] OpenAPI 3.0 spec (`swagger-jsdoc`) + Swagger UI at `/api-docs`
+- [x] Vitest unit tests — Zustand session state machine (client)
+- [x] Vitest integration tests — health endpoints via supertest (server)
+- [x] Production Vite build config — content-hashed assets, manual vendor chunks
+- [x] PWA icons (192×192, 512×512) added to `client/public/`
+- [x] `PRODUCTION_GUIDE.md` — full Docker, CI/CD, env-var, health-check documentation
 
 ### Milestones
 
@@ -562,43 +655,65 @@ All responses follow a consistent shape:
 | M5: Adaptive Difficulty | 7 | Level promotion fires correctly on seeded test data |
 | M6: Drills + Admin | 8 | Metronome drill flow complete; admin panel live |
 | M7: Production Launch | 8 | All Phase 4 criteria passed, custom domain live |
+| M8: Production Hardening | 8+ | Docker + CI/CD + Swagger + tests + PWA icons complete |
 
 ---
 
-## 13. Deployment
+## 14. Deployment
 
-### Frontend — Vercel
+See [`PRODUCTION_GUIDE.md`](./PRODUCTION_GUIDE.md) for the complete step-by-step guide. A quick summary is below.
+
+### Option A — Hosted (Recommended for free tier)
+
+| Layer | Service | Command / Config |
+| :--- | :--- | :--- |
+| Frontend | Vercel | Root dir: `client`, build: `npm run build`, output: `dist` |
+| Backend | Render | Root dir: `server`, build: `npm install && npm run build`, start: `node dist/index.js` |
+| Database | Supabase (hosted Postgres) | Copy connection string → `DATABASE_URL` |
+| Redis | Upstash | Copy `rediss://` URL → `REDIS_URL` |
+
+### Option B — Self-hosted with Docker
 
 ```bash
-cd client
-npm run build        # Outputs to client/dist/
-# Deploy dist/ to Vercel via CLI or GitHub integration
+# Build and start all four containers
+docker compose up --build -d
+
+# Apply DB migrations inside the backend container
+docker compose exec backend npx prisma migrate deploy --schema ../prisma/schema.prisma
+
+# Verify
+curl http://localhost:3001/healthz   # {"status":"ok",...}
+curl http://localhost:80             # React app HTML
 ```
-
-Set all `VITE_*` environment variables in the Vercel project settings.
-
-### Backend — Railway (preferred) or Render
-
-```bash
-cd server
-npm run build        # Compiles TypeScript to dist/
-npm start            # Runs node dist/index.js
-```
-
-Set all non-`VITE_*` environment variables in the Railway/Render dashboard.
-
-**Railway-specific:** Use Railway's managed PostgreSQL and Redis add-ons. The connection URLs are injected automatically — set `DATABASE_URL` and `REDIS_URL` from Railway's variable references.
 
 ### Database migrations in production
 
 ```bash
-# Run from the server directory in CI/CD before starting the server
-npx prisma migrate deploy
+# Hosted (run locally against production DB)
+DATABASE_URL="postgresql://..." npx prisma migrate deploy --schema ./prisma/schema.prisma
+
+# Docker (run inside container)
+docker compose exec backend npx prisma migrate deploy --schema ../prisma/schema.prisma
 ```
 
 ---
 
-## 14. Scientific Foundation
+## 15. CI/CD Pipeline
+
+The `.github/workflows/ci.yml` workflow runs on every push to `main` or `develop` and on PRs to `main`.
+
+| Job | Triggers | What it does |
+| :--- | :--- | :--- |
+| `lint-and-typecheck` | All pushes | `tsc --noEmit` on server + client |
+| `test-server` | All pushes | Runs Vitest in `server/` with a Redis service container |
+| `test-client` | All pushes | Runs Vitest in `client/` (jsdom) |
+| `docker-build` | After all tests pass | Builds backend + frontend Docker images |
+
+To enable Docker image push to a registry, add `DOCKER_USERNAME` and `DOCKER_PASSWORD` to GitHub repo secrets and set `push: true` in the workflow.
+
+---
+
+## 16. Scientific Foundation
 
 ### Technique 1 — Phrase Chunk Highlighting
 Fluent readers make 3–4 fixations per line, each covering a 3–5 word cluster. The app advances a highlight box in phrase-sized chunks (2–3 words, configurable) at the user's target WPM. The full text remains visible — unlike RSVP, peripheral vision is engaged and re-reading is possible.

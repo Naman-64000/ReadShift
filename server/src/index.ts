@@ -14,15 +14,18 @@ import { startWorkers } from "./worker.js";
 import { verifyRedisConnection } from "./lib/redis.js";
 import { globalRateLimit } from "./middleware/rateLimiter.js";
 import { timezoneMiddleware } from "./middleware/timezone.js";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec, swaggerUiOptions } from "./swagger.js";
 
 // Routes
-import usersRouter       from "./routes/users.js";
-import sessionsRouter    from "./routes/sessions.js";
-import passagesRouter    from "./routes/passages.js";
+import usersRouter        from "./routes/users.js";
+import sessionsRouter     from "./routes/sessions.js";
+import passagesRouter     from "./routes/passages.js";
 import calibrationsRouter from "./routes/calibrations.js";
-import dashboardRouter   from "./routes/dashboard.js";
-import adminRouter       from "./routes/admin.js";
-import drillsRouter      from "./routes/drills.js";
+import dashboardRouter    from "./routes/dashboard.js";
+import adminRouter        from "./routes/admin.js";
+import drillsRouter       from "./routes/drills.js";
+import healthRouter       from "./routes/health.js";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -63,8 +66,14 @@ app.use((req, _res, next) => {
   next();
 });
 
-// ── Health check ──────────────────────────────────────────────
+// ── Health checks ─────────────────────────────────────────────
+// /healthz — full check (DB + Redis) used by Docker/k8s probes
+app.use("/healthz", healthRouter);
+// /health   — legacy alias (simple, backward compat)
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
+
+// ── API Docs ─────────────────────────────────────────────
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // ── API routes ────────────────────────────────────────────────
 app.use("/api/users",        usersRouter);

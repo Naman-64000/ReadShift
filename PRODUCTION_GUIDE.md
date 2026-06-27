@@ -42,7 +42,7 @@ This is mandatory. Every service below deploys directly from GitHub.
 
 ### Step 1.2 — Push Your Local Code
 
-Open a terminal in the project root (`/Users/namanjaswani/Downloads/ReadShift`) and run:
+Open a terminal in the project root (`/path/to/readshift`) and run:
 
 ```bash
 git remote remove origin 2>/dev/null || true
@@ -73,7 +73,7 @@ Your Supabase project is already running. You just need to configure it for prod
 ### Step 2.2 — Collect Your Supabase Values
 
 From Supabase → **Project Settings** → **API**, copy and save:
-- `Project URL` (e.g., `https://vlfpkonrotewabhlyebb.supabase.co`)
+- `Project URL` (e.g., `https://YOUR_SUPABASE_REF.supabase.co`)
 - `anon public` key (starts with `eyJ...`)
 
 ---
@@ -88,11 +88,11 @@ Your Supabase project already includes a hosted PostgreSQL database. You will us
 2. Select the **URI** tab
 3. Copy the connection string — it looks like:
    ```
-   postgresql://postgres:[YOUR-PASSWORD]@db.vlfpkonrotewabhlyebb.supabase.co:5432/postgres
+   postgresql://postgres:[YOUR-PASSWORD]@db.YOUR_SUPABASE_REF.supabase.co:5432/postgres
    ```
 4. **Important**: Add `?pgbouncer=true&connection_limit=1` to the end for serverless/pooled connections:
    ```
-   postgresql://postgres:[YOUR-PASSWORD]@db.vlfpkonrotewabhlyebb.supabase.co:6543/postgres?pgbouncer=true&connection_limit=1
+   postgresql://postgres:[YOUR-PASSWORD]@db.YOUR_SUPABASE_REF.supabase.co:6543/postgres?pgbouncer=true&connection_limit=1
    ```
 
 > Keep this URL safe. You'll paste it as `DATABASE_URL` in Render's environment variables.
@@ -104,7 +104,7 @@ Before deploying the server, you must apply your database schema to the Supabase
 In a terminal, from the project root, run:
 
 ```bash
-DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.vlfpkonrotewabhlyebb.supabase.co:5432/postgres" \
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.YOUR_SUPABASE_REF.supabase.co:5432/postgres" \
   npx prisma migrate deploy --schema ./prisma/schema.prisma
 ```
 
@@ -118,7 +118,7 @@ All migrations have been applied.
 ```
 
 > **If you see an error** about shadow database, add `?schema=public` to the end of the URL:
-> `postgresql://postgres:[PASS]@db.vlfpkonrotewabhlyebb.supabase.co:5432/postgres?schema=public`
+> `postgresql://postgres:[PASS]@db.YOUR_SUPABASE_REF.supabase.co:5432/postgres?schema=public`
 
 ---
 
@@ -181,10 +181,10 @@ In the **Environment Variables** section (still on Render setup), add ALL of the
 ```
 NODE_ENV=production
 PORT=3001
-DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.vlfpkonrotewabhlyebb.supabase.co:6543/postgres?pgbouncer=true&connection_limit=1
+DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.YOUR_SUPABASE_REF.supabase.co:6543/postgres?pgbouncer=true&connection_limit=1
 REDIS_URL=rediss://default:[UPSTASH-PASSWORD]@[HOSTNAME].upstash.io:6379
 GEMINI_API_KEY=[YOUR-GEMINI-API-KEY]
-SUPABASE_URL=https://vlfpkonrotewabhlyebb.supabase.co
+SUPABASE_URL=https://YOUR_SUPABASE_REF.supabase.co
 ALLOW_DEV_TOKEN=false
 CORS_ORIGIN=https://readshift.vercel.app
 LOG_LEVEL=info
@@ -253,7 +253,7 @@ You should see:
 Under the **Environment Variables** section in Vercel:
 
 ```
-VITE_SUPABASE_URL=https://vlfpkonrotewabhlyebb.supabase.co
+VITE_SUPABASE_URL=https://YOUR_SUPABASE_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 VITE_API_BASE_URL=https://readshift-backend.onrender.com/api
 ```
@@ -445,7 +445,7 @@ Now you can access the admin panel at `https://readshift.vercel.app/admin` and t
 ### ❌ `prisma migrate deploy` fails with SSL error
 **Fix**: Add `?sslmode=require` to the end of your DATABASE_URL:
 ```
-postgresql://postgres:[PASS]@db.vlfpkonrotewabhlyebb.supabase.co:5432/postgres?schema=public&sslmode=require
+postgresql://postgres:[PASS]@db.YOUR_SUPABASE_REF.supabase.co:5432/postgres?schema=public&sslmode=require
 ```
 
 ### ❌ Redis connection error on startup
@@ -480,3 +480,196 @@ VITE_API_BASE_URL=https://readshift-backend.onrender.com/api
 ---
 
 *Good luck! Once both services are green and all Phase 8 tests pass, ReadShift is fully live in production.* 🎉
+
+---
+
+## PHASE 12 — Docker Deployment (Self-hosted / VPS)
+
+Use this phase instead of Render/Vercel if you want to self-host on a VPS (DigitalOcean, AWS EC2, Hetzner, etc.).
+
+### Step 12.1 — Prerequisites on your server
+
+```bash
+# Install Docker + Compose plugin
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+```
+
+### Step 12.2 — Clone and configure
+
+```bash
+git clone https://github.com/YOUR_USERNAME/readshift.git
+cd readshift
+cp .env.example .env
+# Edit .env and fill in all real values (see Phase 11 summary)
+nano .env
+```
+
+### Step 12.3 — Build and start all containers
+
+```bash
+docker compose up --build -d
+```
+
+This starts four containers:
+| Container | Port | Description |
+|---|---|---|
+| `readshift_postgres` | 5432 | PostgreSQL database |
+| `readshift_redis` | 6379 | Redis (BullMQ + cache) |
+| `readshift_backend` | 3001 | Express API server |
+| `readshift_frontend` | 80 | React app served by nginx |
+
+### Step 12.4 — Apply database migrations
+
+```bash
+docker compose exec backend npx prisma migrate deploy --schema ../prisma/schema.prisma
+```
+
+### Step 12.5 — Verify all services are healthy
+
+```bash
+docker compose ps           # all containers should show "healthy"
+curl http://localhost:3001/healthz   # {"status":"ok","checks":{...}}
+curl http://localhost:80    # HTML of the React app
+```
+
+### Step 12.6 — Tear down / restart
+
+```bash
+docker compose down         # stop containers (data volumes preserved)
+docker compose down -v      # ⚠️  also removes data volumes (destructive)
+docker compose restart backend   # restart a single service
+```
+
+---
+
+## PHASE 13 — CI/CD Pipeline (GitHub Actions)
+
+The file `.github/workflows/ci.yml` runs automatically on every push to `main` or `develop`, and on pull requests to `main`.
+
+### What the pipeline does
+
+| Job | Steps |
+|---|---|
+| `lint-and-typecheck` | Installs all deps, runs `tsc --noEmit` on server and client |
+| `test-server` | Spins up a Redis service container, runs `vitest run` in `server/` |
+| `test-client` | Runs `vitest run` in `client/` with jsdom |
+| `docker-build` | Builds both Docker images (no push by default — see below) |
+
+### Enabling Docker image push
+
+1. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+2. Add the following secrets:
+
+| Secret | Value |
+|---|---|
+| `DOCKER_USERNAME` | Your Docker Hub username |
+| `DOCKER_PASSWORD` | Your Docker Hub access token |
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key |
+| `VITE_API_BASE_URL` | Your production backend URL |
+
+3. In `.github/workflows/ci.yml`, uncomment the **Login to Docker Hub** step and set `push: true` on both `docker/build-push-action` steps.
+
+### Triggering a manual run
+
+```bash
+# Push to main — CI runs automatically
+git push origin main
+
+# Or trigger manually in GitHub UI:
+# Actions → CI → Run workflow
+```
+
+---
+
+## PHASE 14 — Health Checks and API Documentation
+
+### Health endpoints
+
+| Endpoint | Auth | Description |
+|---|---|---|
+| `GET /healthz` | None | Full health check: API + DB + Redis |
+| `GET /health` | None | Legacy simple check (backward compat) |
+
+Example response from `/healthz`:
+```json
+{
+  "status": "ok",
+  "uptime": 3600,
+  "ts": "2026-06-27T12:00:00.000Z",
+  "checks": {
+    "api": "ok",
+    "database": "ok",
+    "redis": "ok"
+  }
+}
+```
+
+If `database` or `redis` returns `"error"` or `"degraded"`, the response status will be **503**.
+
+### OpenAPI / Swagger UI
+
+The interactive API documentation is available at:
+
+```
+http://localhost:3001/api-docs          # local development
+https://readshift-backend.onrender.com/api-docs  # production
+```
+
+All 24 REST endpoints are documented with request/response schemas. You can authorize with your Supabase JWT token directly in the UI and make live requests.
+
+---
+
+## PHASE 15 — Running Tests Locally
+
+### Server tests (Vitest + Supertest)
+
+```bash
+cd server
+npm test              # run once
+npm run test:watch    # watch mode
+```
+
+### Client tests (Vitest + Testing Library)
+
+```bash
+cd client
+npm test              # run once
+npm run test:watch    # watch mode
+```
+
+### What is tested
+
+| Test | File | Covers |
+|---|---|---|
+| Health endpoint | `server/src/__tests__/health.test.ts` | `/healthz` returns 200, `/health` alias works |
+| Session store | `client/src/__tests__/sessionStore.test.ts` | State machine transitions, error handling, deduplication |
+
+---
+
+## Environment Variable Reference (Complete)
+
+### Backend (Render or Docker `backend` service)
+
+| Variable | Required | Example | Notes |
+|---|---|---|---|
+| `NODE_ENV` | ✅ | `production` | Controls logging verbosity |
+| `PORT` | ✅ | `3001` | Express port |
+| `DATABASE_URL` | ✅ | `postgresql://...` | Supabase DB or local Postgres |
+| `REDIS_URL` | ✅ | `rediss://...` | Upstash (TLS) or local Redis |
+| `SUPABASE_URL` | ✅ | `https://xxx.supabase.co` | Supabase project URL |
+| `GEMINI_API_KEY` | ✅ | `AIza...` | Google Gemini API key |
+| `CORS_ORIGIN` | ✅ | `https://readshift.vercel.app` | Frontend URL (no trailing slash) |
+| `ALLOW_DEV_TOKEN` | ✅ | `false` | Must be `false` in production |
+| `LOG_LEVEL` | ⬜ | `info` | `debug`/`info`/`warn`/`error` |
+| `PASSAGE_POOL_MIN_THRESHOLD` | ⬜ | `50` | Minimum passages per domain-level |
+
+### Frontend (Vercel or Docker `frontend` build-arg)
+
+| Variable | Required | Example |
+|---|---|---|
+| `VITE_SUPABASE_URL` | ✅ | `https://xxx.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | `eyJ...` |
+| `VITE_API_BASE_URL` | ✅ | `https://readshift-backend.onrender.com/api` |
+
