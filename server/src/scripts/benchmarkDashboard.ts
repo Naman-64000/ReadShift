@@ -69,7 +69,7 @@ async function runBenchmark() {
     user = await prisma.user.create({
       data: {
         email: "perf-test@readshift.com",
-        username: "perftest",
+        clerk_id: "perf-test-clerk-id",
         streak_days: 5,
       },
     });
@@ -82,10 +82,10 @@ async function runBenchmark() {
       data: {
         id: "perf-test-passage",
         title: "Performance Test Passage",
-        text: "This is a simple text used for performance testing the dashboard queries.",
+        body: "This is a simple text used for performance testing the dashboard queries.",
         word_count: 12,
         domain: "philosophy",
-        difficulty: "medium",
+        generated_by: "benchmark",
       },
     });
   }

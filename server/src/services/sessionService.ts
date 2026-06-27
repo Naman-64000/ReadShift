@@ -2,6 +2,7 @@
  * server/src/services/sessionService.ts
  */
 
+import crypto from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { redis, isRedisAvailable } from "../lib/redis.js";
 import { AppError } from "../types/index.js";

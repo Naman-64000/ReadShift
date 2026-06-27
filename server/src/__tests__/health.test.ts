@@ -6,7 +6,7 @@
  * (no actual server listen needed).
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import request from "supertest";
 
 // ── Mock heavy dependencies so tests run without real DB / Redis ──────────────
@@ -26,11 +26,11 @@ vi.mock("../lib/redis.js", () => ({
 vi.mock("../lib/env.js", () => ({}));
 
 // Must import app AFTER mocks are set up
-let app: Awaited<ReturnType<typeof import("../index.js")["default"]>>;
+let app: any;
 
 beforeAll(async () => {
   const mod = await import("../index.js");
-  app = mod.default as any;
+  app = mod.default;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
